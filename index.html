@@ -737,6 +737,17 @@ function init() {
 }
 
 // ============== RENDER ==============
+function updateSelectionClasses() {
+  // Cheap selection update — does NOT rebuild the DOM, so native dblclick works
+  canvas.querySelectorAll('.node.selected').forEach(n => {
+    if (n.dataset.id !== state.selectedId) n.classList.remove('selected');
+  });
+  if (state.selectedId) {
+    const sel = canvas.querySelector(`[data-id="${state.selectedId}"]`);
+    if (sel && !sel.classList.contains('selected')) sel.classList.add('selected');
+  }
+}
+
 function render() {
   // Remove existing nodes (keep svg)
   canvas.querySelectorAll('.node').forEach(n => n.remove());
@@ -983,11 +994,10 @@ function bindNodeEvents(el, node) {
     if (e.target.classList.contains('port')) return;
     if (el.isContentEditable || el.classList.contains('editing')) return;
     e.stopPropagation();
+    // Update selection in place (avoid full render so dblclick still works)
     state.selectedId = node.id;
-    render();
-    // After render(), the original `el` is detached. Get the fresh one.
-    const liveEl = canvas.querySelector(`[data-id="${node.id}"]`);
-    if (!liveEl) return;
+    updateSelectionClasses();
+    const liveEl = el;
 
     dragStart = { x: e.clientX, y: e.clientY, nodeX: node.x, nodeY: node.y };
     moved = false;
@@ -1336,6 +1346,7 @@ function startEditing(nodeId) {
   if (!node) return;
   const el = canvas.querySelector(`[data-id="${nodeId}"]`);
   if (!el) return;
+  if (el.classList.contains('editing')) return; // already editing this node
   const textEl = el.querySelector('.node-text');
   if (!textEl) return;
   textEl.contentEditable = 'true';
