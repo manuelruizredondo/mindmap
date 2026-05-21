@@ -109,6 +109,22 @@
     background: var(--ink);
     border-color: var(--ink);
   }
+  .btn.btn-icon {
+    padding: 6px 10px;
+    font-size: 14px;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+  .btn.btn-icon.active {
+    background: rgba(61, 107, 79, 0.12);
+    border-color: rgba(61, 107, 79, 0.4);
+    color: var(--child-1);
+  }
+  .btn.btn-icon.active:hover {
+    background: var(--child-1);
+    border-color: var(--child-1);
+    color: var(--paper);
+  }
 
   /* Canvas */
   .canvas-wrap {
@@ -374,6 +390,40 @@
   }
 
   /* Zoom indicator */
+  .fab-add {
+    position: fixed;
+    bottom: 76px;
+    right: 24px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: var(--paper);
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(28, 27, 24, 0.15), 0 2px 4px rgba(28, 27, 24, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0 4px 0;
+    transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    z-index: 50;
+    user-select: none;
+  }
+  .fab-add:hover {
+    background: var(--ink);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(28, 27, 24, 0.22), 0 3px 6px rgba(28, 27, 24, 0.12);
+  }
+  .fab-add:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(28, 27, 24, 0.18);
+  }
+
   .zoom-indicator {
     position: fixed;
     bottom: 24px;
@@ -585,7 +635,8 @@
     <button class="btn" id="btnNew">Nuevo</button>
     <button class="btn" id="btnSave">Guardar</button>
     <button class="btn" id="btnList">Mis mapas</button>
-    <button class="btn" id="btnExportJson">Export JSON</button>
+    <button class="btn" id="btnExportJson" title="Exportar JSON">Export JSON</button>
+    <button class="btn btn-icon" id="btnJsonFolder" title="Carpeta de guardado JSON">📁</button>
     <button class="btn" id="btnImportJson">Importar</button>
     <button class="btn primary" id="btnExportPng">Export PNG</button>
   </div>
@@ -611,6 +662,8 @@
   <div><kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer</div>
   <div><kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd> guardar</div>
 </div>
+
+<button class="fab-add" id="fabAdd" title="Añadir nodo (Tab para hijo desde teclado)" aria-label="Añadir nodo">+</button>
 
 <div class="zoom-indicator" id="zoomIndicator">100%</div>
 
@@ -965,6 +1018,18 @@ function bindNodeEvents(el, node) {
     startEditing(node.id);
   });
 }
+
+// Event-delegated dblclick so editing still works after render() rebuilds nodes
+canvas.addEventListener('dblclick', (e) => {
+  if (e.target.classList && e.target.classList.contains('port')) return;
+  const nodeEl = e.target.closest && e.target.closest('.node');
+  if (!nodeEl) return;
+  const id = nodeEl.dataset.id;
+  if (!id || !state.nodes[id]) return;
+  e.stopPropagation();
+  state.selectedId = id;
+  startEditing(id);
+});
 
 // ============== PORT DRAG (create connection) ==============
 // Global delegation: any mousedown on a .port starts a connection drag.
@@ -1740,21 +1805,237 @@ document.getElementById('btnNew').addEventListener('click', () => {
 
 document.getElementById('btnSave').addEventListener('click', openSaveModal);
 
-document.getElementById('btnExportJson').addEventListener('click', () => {
-  const data = {
+// ============== JSON FOLDER (File System Access API) ==============
+const FS_DB_NAME = 'mindmap_fs_v1';
+const FS_STORE = 'handles';
+const FS_KEY = 'jsonFolder';
+let jsonFolderHandle = null;
+
+function fsApiSupported() {
+  return typeof window.showDirectoryPicker === 'function';
+}
+
+function fsOpenDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(FS_DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(FS_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function fsSaveHandle(handle) {
+  const db = await fsOpenDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(FS_STORE, 'readwrite');
+    tx.objectStore(FS_STORE).put(handle, FS_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function fsLoadHandle() {
+  try {
+    const db = await fsOpenDb();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(FS_STORE, 'readonly');
+      const req = tx.objectStore(FS_STORE).get(FS_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch { return null; }
+}
+
+async function fsClearHandle() {
+  try {
+    const db = await fsOpenDb();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(FS_STORE, 'readwrite');
+      tx.objectStore(FS_STORE).delete(FS_KEY);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {}
+}
+
+async function ensurePermission(handle, mode = 'readwrite') {
+  if (!handle || !handle.queryPermission) return true;
+  const opts = { mode };
+  let p = await handle.queryPermission(opts);
+  if (p === 'granted') return true;
+  p = await handle.requestPermission(opts);
+  return p === 'granted';
+}
+
+function updateFolderButtonUI() {
+  const btn = document.getElementById('btnJsonFolder');
+  if (!btn) return;
+  if (jsonFolderHandle) {
+    btn.classList.add('active');
+    btn.title = `Guardando en: ${jsonFolderHandle.name}  ·  clic para cambiar`;
+  } else {
+    btn.classList.remove('active');
+    btn.title = fsApiSupported()
+      ? 'Elegir carpeta de guardado JSON'
+      : 'Tu navegador no soporta carpeta fija — se usará la descarga normal';
+  }
+}
+
+async function pickJsonFolder() {
+  if (!fsApiSupported()) {
+    toast('Tu navegador no soporta elegir carpeta — usa Chrome/Edge');
+    return null;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    const ok = await ensurePermission(handle, 'readwrite');
+    if (!ok) {
+      toast('Permiso de carpeta denegado');
+      return null;
+    }
+    await fsSaveHandle(handle);
+    jsonFolderHandle = handle;
+    updateFolderButtonUI();
+    toast(`Carpeta JSON: ${handle.name}`);
+    return handle;
+  } catch (err) {
+    if (err && err.name === 'AbortError') return null;
+    console.error(err);
+    toast('Error eligiendo carpeta');
+    return null;
+  }
+}
+
+async function writeJsonToFolder(handle, filename, contents) {
+  const fileHandle = await handle.getFileHandle(filename, { create: true });
+  const writable = await fileHandle.createWritable();
+  await writable.write(contents);
+  await writable.close();
+}
+
+function buildExportPayload() {
+  return {
     name: state.currentName,
     nodes: state.nodes,
     rootId: state.rootId,
     exportedAt: new Date().toISOString(),
   };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+}
+
+function jsonFileName() {
+  const safe = state.currentName.replace(/[^a-z0-9_\- ]/gi, '_').trim() || 'mindmap';
+  return `${safe}.mindmap.json`;
+}
+
+function downloadJsonFallback(json, filename) {
+  const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${state.currentName.replace(/[^a-z0-9]/gi, '_')}.mindmap.json`;
+  a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
-  toast('JSON exportado');
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+async function exportJsonAction() {
+  const json = JSON.stringify(buildExportPayload(), null, 2);
+  const filename = jsonFileName();
+
+  // If folder API not supported → download
+  if (!fsApiSupported()) {
+    downloadJsonFallback(json, filename);
+    toast('JSON descargado');
+    return;
+  }
+
+  // If no folder yet, prompt user to pick one (one-time)
+  if (!jsonFolderHandle) {
+    const picked = await pickJsonFolder();
+    if (!picked) {
+      // User cancelled or denied — fall back to a normal download
+      downloadJsonFallback(json, filename);
+      toast('JSON descargado');
+      return;
+    }
+  }
+
+  // Re-verify permission (it can lapse between sessions)
+  const ok = await ensurePermission(jsonFolderHandle, 'readwrite');
+  if (!ok) {
+    toast('Permiso denegado, descargando en su lugar');
+    downloadJsonFallback(json, filename);
+    return;
+  }
+
+  try {
+    await writeJsonToFolder(jsonFolderHandle, filename, json);
+    toast(`Guardado en ${jsonFolderHandle.name}/${filename}`);
+  } catch (err) {
+    console.error(err);
+    toast('Error al guardar, descargando en su lugar');
+    downloadJsonFallback(json, filename);
+  }
+}
+
+async function manageJsonFolder() {
+  if (!fsApiSupported()) {
+    toast('Tu navegador no soporta carpeta fija (usa Chrome/Edge)');
+    return;
+  }
+  if (!jsonFolderHandle) {
+    await pickJsonFolder();
+    return;
+  }
+  // Folder already set: offer change or remove
+  const action = prompt(
+    `Carpeta JSON actual: ${jsonFolderHandle.name}\n\n` +
+    `Escribe:\n` +
+    `  c  → para cambiar de carpeta\n` +
+    `  x  → para quitar la carpeta (volver a descargas)\n` +
+    `  (vacío para cancelar)`,
+    ''
+  );
+  if (!action) return;
+  const a = action.trim().toLowerCase();
+  if (a === 'c') {
+    await pickJsonFolder();
+  } else if (a === 'x') {
+    await fsClearHandle();
+    jsonFolderHandle = null;
+    updateFolderButtonUI();
+    toast('Carpeta JSON eliminada');
+  }
+}
+
+// Load saved folder handle on startup
+(async function initJsonFolder() {
+  if (!fsApiSupported()) {
+    updateFolderButtonUI();
+    return;
+  }
+  const handle = await fsLoadHandle();
+  if (handle) {
+    // Don't request permission yet — only when user actually exports
+    jsonFolderHandle = handle;
+  }
+  updateFolderButtonUI();
+})();
+
+document.getElementById('btnExportJson').addEventListener('click', exportJsonAction);
+document.getElementById('btnJsonFolder').addEventListener('click', manageJsonFolder);
+
+// Floating "+" button: add a child to the selected node (or to root if nothing selected)
+document.getElementById('fabAdd').addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  let parentId = state.selectedId;
+  if (!parentId || !state.nodes[parentId]) {
+    parentId = state.rootId;
+  }
+  if (!parentId) return;
+  addChild(parentId);
 });
 
 document.getElementById('btnImportJson').addEventListener('click', () => {
