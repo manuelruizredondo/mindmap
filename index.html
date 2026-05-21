@@ -532,8 +532,43 @@
     color: var(--ink-soft);
     font-style: italic;
     margin-left: 18px;
-    padding-left: 18px;
-    border-left: 1px solid rgba(28, 27, 24, 0.15);
+    padding: 3px 8px;
+    margin-left: 10px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    cursor: text;
+    outline: none;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    min-width: 60px;
+    max-width: 340px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    position: relative;
+  }
+  .current-name::before {
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 16px;
+    background: rgba(28, 27, 24, 0.15);
+  }
+  .current-name:hover {
+    background: rgba(28, 27, 24, 0.04);
+    color: var(--ink);
+  }
+  .current-name:focus,
+  .current-name.editing {
+    background: var(--paper);
+    border-color: rgba(28, 27, 24, 0.2);
+    color: var(--ink);
+    font-style: normal;
+    cursor: text;
+    white-space: nowrap;
+    overflow: visible;
   }
 </style>
 </head>
@@ -544,7 +579,7 @@
     <span class="brand-dot"></span>
     Mindmap
     <small>Estudio</small>
-    <span class="current-name" id="currentName">Sin título</span>
+    <span class="current-name" id="currentName" title="Clic para editar el título" spellcheck="false">Sin título</span>
   </div>
   <div class="controls">
     <button class="btn" id="btnNew">Nuevo</button>
@@ -800,8 +835,90 @@ function centerView() {
 }
 
 function updateCurrentNameLabel() {
-  document.getElementById('currentName').textContent = state.currentName;
+  const el = document.getElementById('currentName');
+  if (el && !el.classList.contains('editing')) {
+    el.textContent = state.currentName;
+  }
 }
+
+function setCurrentName(newName) {
+  const clean = (newName || '').trim().slice(0, 120) || 'Sin título';
+  if (clean === state.currentName) {
+    updateCurrentNameLabel();
+    return;
+  }
+  state.currentName = clean;
+  // If this map is saved, propagate the new name to its stored record
+  if (state.currentId) {
+    try {
+      const maps = getMaps();
+      if (maps[state.currentId]) {
+        maps[state.currentId].name = clean;
+        maps[state.currentId].updatedAt = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(maps));
+      }
+    } catch (e) { console.warn(e); }
+  }
+  updateCurrentNameLabel();
+  autoSave();
+  toast('Título actualizado');
+}
+
+// Wire up inline editing of the project title
+(function setupTitleEditing() {
+  const el = document.getElementById('currentName');
+  if (!el) return;
+
+  function startEditing() {
+    if (el.classList.contains('editing')) return;
+    el.classList.add('editing');
+    el.setAttribute('contenteditable', 'plaintext-only');
+    // Fallback: some browsers don't support plaintext-only
+    if (el.getAttribute('contenteditable') !== 'plaintext-only') {
+      el.setAttribute('contenteditable', 'true');
+    }
+    el.focus();
+    // Select all text
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function finishEditing(commit) {
+    if (!el.classList.contains('editing')) return;
+    const newName = el.textContent;
+    el.classList.remove('editing');
+    el.removeAttribute('contenteditable');
+    window.getSelection()?.removeAllRanges();
+    if (commit) {
+      setCurrentName(newName);
+    } else {
+      el.textContent = state.currentName;
+    }
+  }
+
+  el.addEventListener('click', startEditing);
+  el.addEventListener('focus', startEditing);
+  el.addEventListener('blur', () => finishEditing(true));
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      el.blur();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      finishEditing(false);
+      el.blur();
+    }
+  });
+  // Prevent pasted rich content
+  el.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    document.execCommand('insertText', false, text.replace(/\s+/g, ' '));
+  });
+})();
 
 // ============== NODE EVENTS ==============
 function bindNodeEvents(el, node) {
@@ -1616,6 +1733,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
     state.historyIndex = -1;
     centerView();
     render();
+    updateCurrentNameLabel();
     saveSnapshot();
   }
 });
@@ -1656,6 +1774,7 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
       state.currentId = null;
       centerView();
       render();
+      updateCurrentNameLabel();
       saveSnapshot();
       toast('JSON importado');
     } catch {
@@ -1687,9 +1806,16 @@ function exportPng() {
     }
   }
 
+  // Reserve extra space at the top for the title block
+  const titleText = (state.currentName || 'Sin título').trim();
+  const titleFontSize = 34;
+  const titleSubFontSize = 11;
+  const titleBlockHeight = titleText ? (titleFontSize + 14 + titleSubFontSize + 8) : 0;
+  const topExtra = titleBlockHeight;
+
   const minX = Math.min(...nodes.map(n => boxes[n.id].left)) - padding;
   const maxX = Math.max(...nodes.map(n => boxes[n.id].right)) + padding;
-  const minY = Math.min(...nodes.map(n => boxes[n.id].top)) - padding;
+  const minY = Math.min(...nodes.map(n => boxes[n.id].top)) - padding - topExtra;
   const maxY = Math.max(...nodes.map(n => boxes[n.id].bottom)) + padding;
   const width = maxX - minX;
   const height = maxY - minY;
@@ -1717,6 +1843,29 @@ function exportPng() {
       ctx.arc(x, y, 1, 0, Math.PI * 2);
       ctx.fill();
     }
+  }
+
+  // Title (top-left)
+  if (titleText) {
+    const titleX = minX + 48;
+    const titleY = minY + 48;
+    // Small accent dot
+    ctx.fillStyle = '#c8553d';
+    ctx.beginPath();
+    ctx.arc(titleX + 5, titleY + titleFontSize * 0.55, 5, 0, Math.PI * 2);
+    ctx.fill();
+    // Subtitle / category label
+    ctx.fillStyle = '#5a564d';
+    ctx.font = `500 ${titleSubFontSize}px "JetBrains Mono", ui-monospace, monospace`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('MINDMAP · ESTUDIO', titleX + 18, titleY - titleSubFontSize - 6);
+    // Title itself
+    ctx.fillStyle = '#1c1b18';
+    ctx.font = `600 ${titleFontSize}px Fraunces, Georgia, serif`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(titleText, titleX + 18, titleY);
   }
 
   // Connections
