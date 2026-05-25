@@ -659,6 +659,9 @@
   <div><kbd>Supr</kbd> borrar nodo</div>
   <div><kbd>↑ ↓ ← →</kbd> navegar</div>
   <div><kbd>Espacio</kbd> + drag mover lienzo</div>
+  <div><kbd>Shift</kbd> + clic seleccionar varios</div>
+  <div><kbd>Shift</kbd> + drag selección por área</div>
+  <div><kbd>Esc</kbd> limpiar selección</div>
   <div><kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer</div>
   <div><kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd> guardar</div>
 </div>
@@ -696,6 +699,7 @@ const state = {
   nodes: {},       // id -> { id, text, x, y, parent, children: [], depth }
   rootId: null,
   selectedId: null,
+  selectedIds: new Set(),  // multi-selection (extra ids, beyond selectedId)
   zoom: 1,
   panX: 0,
   panY: 0,
@@ -736,16 +740,62 @@ function init() {
   saveSnapshot();
 }
 
+// ============== SELECTION HELPERS ==============
+function allSelectedIds() {
+  const s = new Set(state.selectedIds);
+  if (state.selectedId) s.add(state.selectedId);
+  return s;
+}
+function isAnySelected(id) {
+  return state.selectedId === id || state.selectedIds.has(id);
+}
+function clearAllSelection() {
+  state.selectedIds.clear();
+  state.selectedId = null;
+}
+function setSingleSelection(id) {
+  state.selectedIds.clear();
+  state.selectedId = id;
+}
+function toggleAdditionalSelection(id) {
+  if (state.selectedId === id) {
+    // Demote anchor: pick another from set if any, otherwise clear anchor
+    state.selectedIds.delete(id);
+    if (state.selectedIds.size > 0) {
+      const next = state.selectedIds.values().next().value;
+      state.selectedIds.delete(next);
+      state.selectedId = next;
+    } else {
+      state.selectedId = null;
+    }
+  } else if (state.selectedIds.has(id)) {
+    state.selectedIds.delete(id);
+  } else {
+    if (state.selectedId) state.selectedIds.add(state.selectedId);
+    state.selectedId = id;
+  }
+}
+function collectDescendantIds(id) {
+  const out = [];
+  (function walk(nid) {
+    const n = state.nodes[nid];
+    if (!n) return;
+    n.children.forEach(c => { out.push(c); walk(c); });
+  })(id);
+  return out;
+}
+
 // ============== RENDER ==============
 function updateSelectionClasses() {
   // Cheap selection update — does NOT rebuild the DOM, so native dblclick works
+  const sel = allSelectedIds();
   canvas.querySelectorAll('.node.selected').forEach(n => {
-    if (n.dataset.id !== state.selectedId) n.classList.remove('selected');
+    if (!sel.has(n.dataset.id)) n.classList.remove('selected');
   });
-  if (state.selectedId) {
-    const sel = canvas.querySelector(`[data-id="${state.selectedId}"]`);
-    if (sel && !sel.classList.contains('selected')) sel.classList.add('selected');
-  }
+  sel.forEach(id => {
+    const el = canvas.querySelector(`[data-id="${id}"]`);
+    if (el && !el.classList.contains('selected')) el.classList.add('selected');
+  });
 }
 
 function render() {
@@ -759,7 +809,7 @@ function render() {
     if (node.id !== state.rootId) {
       el.classList.add('depth-' + ((node.depth - 1) % 4 + 1));
     }
-    if (node.id === state.selectedId) el.classList.add('selected');
+    if (isAnySelected(node.id)) el.classList.add('selected');
     el.style.left = node.x + 'px';
     el.style.top = node.y + 'px';
     el.dataset.id = node.id;
@@ -831,12 +881,22 @@ function renderConnections() {
       c2x = entry.x; c2y = entry.y - dy;
     }
     const d = `M ${exit.x} ${exit.y} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${entry.x} ${entry.y}`;
+    const strokeColor = node.lineColor || getDepthColor(node.depth);
+    const strokeW = Math.max(1.5, 3 - node.depth * 0.4);
     path.setAttribute('d', d);
-    path.setAttribute('stroke', node.lineColor || getDepthColor(node.depth));
-    path.setAttribute('stroke-width', Math.max(1.5, 3 - node.depth * 0.4));
+    path.setAttribute('stroke', strokeColor);
+    path.setAttribute('stroke-width', strokeW);
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke-linecap', 'round');
     svg.appendChild(path);
+
+    // Bolita en la junta (entrada al nodo hijo) para tapar la unión
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', entry.x);
+    dot.setAttribute('cy', entry.y);
+    dot.setAttribute('r', strokeW + 1.5);
+    dot.setAttribute('fill', strokeColor);
+    svg.appendChild(dot);
   });
 }
 
@@ -994,27 +1054,91 @@ function bindNodeEvents(el, node) {
     if (e.target.classList.contains('port')) return;
     if (el.isContentEditable || el.classList.contains('editing')) return;
     e.stopPropagation();
-    // Update selection in place (avoid full render so dblclick still works)
-    state.selectedId = node.id;
+
+    // Selection logic (update before drag so drag knows the selection set)
+    const wasSelected = isAnySelected(node.id);
+    if (e.shiftKey || e.metaKey || e.ctrlKey) {
+      toggleAdditionalSelection(node.id);
+    } else if (!wasSelected) {
+      setSingleSelection(node.id);
+    }
+    // If already selected without modifier, keep current selection (so drag moves group)
     updateSelectionClasses();
     const liveEl = el;
+
+    // Decide what set of nodes moves together
+    const selectedSet = allSelectedIds();
+    let movers;       // array of {id, startX, startY}
+    let descendantMode = false;
+    if (selectedSet.size > 1 && selectedSet.has(node.id)) {
+      // Group drag: only the explicitly selected nodes move
+      movers = [...selectedSet].map(id => ({
+        id, startX: state.nodes[id].x, startY: state.nodes[id].y
+      }));
+    } else {
+      // Subtree drag: dragged node + all descendants
+      descendantMode = true;
+      const ids = [node.id, ...collectDescendantIds(node.id)];
+      movers = ids.map(id => ({
+        id, startX: state.nodes[id].x, startY: state.nodes[id].y
+      }));
+    }
+
+    // Reference for the side-flip: parent of the dragged node (only matters in subtree mode)
+    const parent = node.parent ? state.nodes[node.parent] : null;
+    const initialSide = parent ? Math.sign(node.x - parent.x) : 0;
 
     dragStart = { x: e.clientX, y: e.clientY, nodeX: node.x, nodeY: node.y };
     moved = false;
     liveEl.classList.add('dragging');
+    // Visually mark co-movers too
+    movers.forEach(m => {
+      if (m.id === node.id) return;
+      const mel = canvas.querySelector(`[data-id="${m.id}"]`);
+      if (mel) mel.classList.add('dragging');
+    });
 
     const onMove = (ev) => {
       const dx = (ev.clientX - dragStart.x) / state.zoom;
       const dy = (ev.clientY - dragStart.y) / state.zoom;
       if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
-      node.x = dragStart.nodeX + dx;
-      node.y = dragStart.nodeY + dy;
-      liveEl.style.left = node.x + 'px';
-      liveEl.style.top = node.y + 'px';
+
+      // Move every node in the set by the same delta first
+      movers.forEach(m => {
+        state.nodes[m.id].x = m.startX + dx;
+        state.nodes[m.id].y = m.startY + dy;
+      });
+
+      // Side-flip: only in subtree mode, only if parent exists and dragged node crossed
+      if (descendantMode && parent && initialSide !== 0) {
+        const newSide = Math.sign(node.x - parent.x);
+        if (newSide !== 0 && newSide !== initialSide) {
+          // Mirror each descendant's x-offset around the dragged node's new x
+          movers.forEach(m => {
+            if (m.id === node.id) return;
+            const origOffsetX = m.startX - dragStart.nodeX;
+            state.nodes[m.id].x = node.x - origOffsetX;
+          });
+        }
+      }
+
+      // Update DOM positions in place (no full render — keeps native dblclick alive)
+      movers.forEach(m => {
+        const mel = canvas.querySelector(`[data-id="${m.id}"]`);
+        if (mel) {
+          mel.style.left = state.nodes[m.id].x + 'px';
+          mel.style.top = state.nodes[m.id].y + 'px';
+        }
+      });
       renderConnections();
     };
     const onUp = () => {
       liveEl.classList.remove('dragging');
+      movers.forEach(m => {
+        if (m.id === node.id) return;
+        const mel = canvas.querySelector(`[data-id="${m.id}"]`);
+        if (mel) mel.classList.remove('dragging');
+      });
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (moved) saveSnapshot();
@@ -1405,16 +1529,77 @@ document.addEventListener('keyup', (e) => {
 });
 
 canvasWrap.addEventListener('mousedown', (e) => {
-  if (e.target === canvasWrap || e.target === canvas || e.target === svg || spacePressed || e.button === 1) {
+  const onEmpty = (e.target === canvasWrap || e.target === canvas || e.target === svg);
+  // Shift+drag on empty space = box-select (do NOT pan, do NOT clear)
+  if (onEmpty && e.shiftKey && !spacePressed && e.button === 0) {
+    startBoxSelect(e);
+    e.preventDefault();
+    return;
+  }
+  if (onEmpty || spacePressed || e.button === 1) {
     panStart = { x: e.clientX, y: e.clientY, panX: state.panX, panY: state.panY };
     canvasWrap.classList.add('panning');
-    if (e.target === canvasWrap || e.target === canvas || e.target === svg) {
-      state.selectedId = null;
+    if (onEmpty) {
+      clearAllSelection();
       render();
     }
     e.preventDefault();
   }
 });
+
+// Box-select: drag a rectangle to add every overlapping node to the selection
+function startBoxSelect(e) {
+  const startCX = e.clientX;
+  const startCY = e.clientY;
+  const box = document.createElement('div');
+  box.style.cssText = `
+    position: fixed;
+    border: 1.5px dashed var(--accent);
+    background: rgba(200, 85, 61, 0.08);
+    pointer-events: none;
+    z-index: 200;
+    left: ${startCX}px;
+    top: ${startCY}px;
+    width: 0; height: 0;
+  `;
+  document.body.appendChild(box);
+
+  const onMove = (ev) => {
+    const left = Math.min(startCX, ev.clientX);
+    const top = Math.min(startCY, ev.clientY);
+    const width = Math.abs(ev.clientX - startCX);
+    const height = Math.abs(ev.clientY - startCY);
+    box.style.left = left + 'px';
+    box.style.top = top + 'px';
+    box.style.width = width + 'px';
+    box.style.height = height + 'px';
+  };
+
+  const onUp = () => {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    const boxRect = box.getBoundingClientRect();
+    box.remove();
+    // Add every node whose DOM rect intersects the box rect
+    let added = 0;
+    canvas.querySelectorAll('.node').forEach(el => {
+      const r = el.getBoundingClientRect();
+      const intersects = !(r.right < boxRect.left || r.left > boxRect.right ||
+                            r.bottom < boxRect.top || r.top > boxRect.bottom);
+      if (intersects) {
+        const id = el.dataset.id;
+        if (state.selectedId === id || state.selectedIds.has(id)) return;
+        if (!state.selectedId) state.selectedId = id;
+        else state.selectedIds.add(id);
+        added++;
+      }
+    });
+    updateSelectionClasses();
+  };
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
 document.addEventListener('mousemove', (e) => {
   if (panStart) {
     state.panX = panStart.panX + (e.clientX - panStart.x);
@@ -1495,35 +1680,107 @@ document.addEventListener('keydown', (e) => {
     e.preventDefault();
     startEditing(sel);
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (sel !== state.rootId) {
-      e.preventDefault();
-      deleteNode(sel);
-    }
+    e.preventDefault();
+    const toDelete = [...allSelectedIds()].filter(id => id !== state.rootId && state.nodes[id]);
+    if (toDelete.length === 0) return;
+    // Delete in order so descendants don't get orphaned mid-loop
+    toDelete.sort((a, b) => state.nodes[b].depth - state.nodes[a].depth);
+    toDelete.forEach(id => { if (state.nodes[id]) deleteNode(id); });
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    clearAllSelection();
+    render();
   } else if (e.key === 'ArrowUp') { navigate('up'); e.preventDefault(); }
   else if (e.key === 'ArrowDown') { navigate('down'); e.preventDefault(); }
   else if (e.key === 'ArrowLeft') { navigate('left'); e.preventDefault(); }
   else if (e.key === 'ArrowRight') { navigate('right'); e.preventDefault(); }
 });
 
+// Move a node and all its descendants by (dx, dy) so subtrees stay glued
+// together when a parent's children get re-arranged.
+function moveSubtree(nodeId, dx, dy) {
+  if (dx === 0 && dy === 0) return;
+  const node = state.nodes[nodeId];
+  if (!node) return;
+  node.x += dx;
+  node.y += dy;
+  node.children.forEach(cid => moveSubtree(cid, dx, dy));
+}
+
+// Re-arrange a parent's immediate children in a tidy column (or row),
+// centered on the parent. The direction is inferred from the grandparent
+// so children naturally extend "outward" from the root. Each child is
+// moved together with its subtree to preserve any manual arrangement
+// the user has built deeper down.
+function layoutChildren(parentId) {
+  const parent = state.nodes[parentId];
+  if (!parent) return;
+  const children = parent.children.map(id => state.nodes[id]).filter(Boolean);
+  const n = children.length;
+  if (n === 0) return;
+
+  // Root: keep a radial layout so all directions get used.
+  if (parentId === state.rootId) {
+    const radius = 240;
+    // Hold the angular step fixed (6 slots) until we exceed it, then spread
+    // evenly. This stops the deck from snapping every time you add #2.
+    const slots = Math.max(n, 6);
+    children.forEach((child, i) => {
+      const angle = (i * Math.PI * 2 / slots) - Math.PI / 2;
+      const targetX = parent.x + Math.cos(angle) * radius;
+      const targetY = parent.y + Math.sin(angle) * radius;
+      moveSubtree(child.id, targetX - child.x, targetY - child.y);
+    });
+    return;
+  }
+
+  // Non-root: figure out which side of the parent to place children on,
+  // based on where the grandparent sits.
+  const gp = state.nodes[parent.parent];
+  let dirX = 1, dirY = 0;
+  if (gp) {
+    const ddx = parent.x - gp.x;
+    const ddy = parent.y - gp.y;
+    if (Math.abs(ddx) >= Math.abs(ddy)) {
+      dirX = ddx >= 0 ? 1 : -1;
+      dirY = 0;
+    } else {
+      dirX = 0;
+      dirY = ddy >= 0 ? 1 : -1;
+    }
+  }
+
+  const COL_GAP = 220;  // distance from parent to its children column/row
+  const ROW_GAP = 76;   // center-to-center gap between siblings (nodes are ~36px tall)
+  const H_GAP   = 190;  // horizontal gap when children are stacked above/below
+
+  if (dirY === 0) {
+    // Children stacked vertically on one side of the parent
+    const totalH = (n - 1) * ROW_GAP;
+    const startY = parent.y - totalH / 2;
+    const targetX = parent.x + dirX * COL_GAP;
+    children.forEach((child, i) => {
+      const targetY = startY + i * ROW_GAP;
+      moveSubtree(child.id, targetX - child.x, targetY - child.y);
+    });
+  } else {
+    // Children spread horizontally above or below the parent
+    const totalW = (n - 1) * H_GAP;
+    const startX = parent.x - totalW / 2;
+    const targetY = parent.y + dirY * COL_GAP;
+    children.forEach((child, i) => {
+      const targetX = startX + i * H_GAP;
+      moveSubtree(child.id, targetX - child.x, targetY - child.y);
+    });
+  }
+}
+
 function addChild(parentId) {
   const parent = state.nodes[parentId];
   if (!parent) return;
-  // Position relative to parent
-  const siblingCount = parent.children.length;
-  const angle = parentId === state.rootId
-    ? (siblingCount * (Math.PI * 2 / 6)) - Math.PI / 2
-    : 0;
-  let nx, ny;
-  if (parentId === state.rootId) {
-    const radius = 220;
-    nx = parent.x + Math.cos(angle) * radius;
-    ny = parent.y + Math.sin(angle) * radius;
-  } else {
-    // Place to the right and offset vertically by siblings
-    nx = parent.x + 200;
-    ny = parent.y + (siblingCount - parent.children.length / 2) * 70;
-  }
-  const id = createNode('Nuevo nodo', nx, ny, parentId);
+  // Create at the parent's position; layoutChildren will place it tidily.
+  const id = createNode('Nuevo nodo', parent.x, parent.y, parentId);
+  layoutChildren(parentId);
   state.selectedId = id;
   render();
   setTimeout(() => startEditing(id), 50);
@@ -1538,11 +1795,12 @@ function addSibling(nodeId) {
   }
   const parent = state.nodes[node.parent];
   const idx = parent.children.indexOf(nodeId);
-  const offset = 80;
-  const id = createNode('Nuevo nodo', node.x, node.y + offset, node.parent);
-  // Reorder so the new sibling is right after current
+  // Create at the parent's position; layoutChildren will re-distribute.
+  const id = createNode('Nuevo nodo', parent.x, parent.y, node.parent);
+  // Reorder so the new sibling is right after the current one
   parent.children.pop();
   parent.children.splice(idx + 1, 0, id);
+  layoutChildren(node.parent);
   state.selectedId = id;
   render();
   setTimeout(() => startEditing(id), 50);
@@ -1564,9 +1822,14 @@ function deleteNode(nodeId) {
   const parent = state.nodes[node.parent];
   if (parent) parent.children = parent.children.filter(c => c !== nodeId);
   // Delete
-  toDelete.forEach(id => delete state.nodes[id]);
-  // Select parent
-  state.selectedId = node.parent || state.rootId;
+  toDelete.forEach(id => {
+    delete state.nodes[id];
+    state.selectedIds.delete(id);
+  });
+  // Select parent only if we just removed the anchor
+  if (toDelete.includes(state.selectedId)) {
+    state.selectedId = node.parent || state.rootId;
+  }
   render();
   saveSnapshot();
 }
@@ -2178,13 +2441,20 @@ function exportPng() {
       c1x = exit.x; c1y = exit.y + ddy;
       c2x = entry.x; c2y = entry.y - ddy;
     }
-    ctx.strokeStyle = node.lineColor || getDepthColor(node.depth);
-    ctx.lineWidth = Math.max(1.5, 3 - node.depth * 0.4);
+    const strokeC = node.lineColor || getDepthColor(node.depth);
+    const strokeLW = Math.max(1.5, 3 - node.depth * 0.4);
+    ctx.strokeStyle = strokeC;
+    ctx.lineWidth = strokeLW;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(exit.x, exit.y);
     ctx.bezierCurveTo(c1x, c1y, c2x, c2y, entry.x, entry.y);
     ctx.stroke();
+    // Bolita en la junta (tapa la unión con el borde del nodo)
+    ctx.fillStyle = strokeC;
+    ctx.beginPath();
+    ctx.arc(entry.x, entry.y, strokeLW + 1.5, 0, Math.PI * 2);
+    ctx.fill();
   });
 
   // Nodes

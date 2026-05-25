@@ -1,0 +1,313 @@
+{
+  "name": "Abogado Laboral · Estrategia Digital",
+  "rootId": "n_root0001",
+  "nodes": {
+    "n_root0001": {
+      "id": "n_root0001",
+      "text": "Abogado Laboral\nEstrategia Digital",
+      "x": 0,
+      "y": 0,
+      "parent": null,
+      "children": ["n_news0001", "n_rrss0001", "n_land0001", "n_seo00001", "n_auto0001", "n_repu0001"],
+      "depth": 0
+    },
+
+    "n_news0001": {
+      "id": "n_news0001",
+      "text": "Newsletters IA",
+      "x": 340,
+      "y": -520,
+      "parent": "n_root0001",
+      "children": ["n_news0002", "n_news0003", "n_news0004", "n_news0005"],
+      "depth": 1,
+      "color": "#3d6b4f",
+      "bgColor": "#e3eee5"
+    },
+    "n_news0002": {
+      "id": "n_news0002",
+      "text": "Segmentación por perfil\n(trabajador / empresa / RRHH)",
+      "x": 680,
+      "y": -620,
+      "parent": "n_news0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_news0003": {
+      "id": "n_news0003",
+      "text": "Personalización con IA\n(RGPD-friendly)",
+      "x": 680,
+      "y": -550,
+      "parent": "n_news0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_news0004": {
+      "id": "n_news0004",
+      "text": "Cadencia: 2/mes\n+ alertas de novedades",
+      "x": 680,
+      "y": -480,
+      "parent": "n_news0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_news0005": {
+      "id": "n_news0005",
+      "text": "Plantillas:\ncaso de la semana, FAQ",
+      "x": 680,
+      "y": -410,
+      "parent": "n_news0001",
+      "children": [],
+      "depth": 2
+    },
+
+    "n_rrss0001": {
+      "id": "n_rrss0001",
+      "text": "Redes Sociales",
+      "x": 340,
+      "y": -240,
+      "parent": "n_root0001",
+      "children": ["n_rrss0002", "n_rrss0003", "n_rrss0004"],
+      "depth": 1,
+      "color": "#c8553d",
+      "bgColor": "#fce8e3"
+    },
+    "n_rrss0002": {
+      "id": "n_rrss0002",
+      "text": "LinkedIn (B2B / RRHH)",
+      "x": 680,
+      "y": -320,
+      "parent": "n_rrss0001",
+      "children": ["n_rrss0021", "n_rrss0022"],
+      "depth": 2
+    },
+    "n_rrss0021": {
+      "id": "n_rrss0021",
+      "text": "Carruseles\n\"¿Sabías que...?\" jurídico",
+      "x": 1020,
+      "y": -360,
+      "parent": "n_rrss0002",
+      "children": [],
+      "depth": 3
+    },
+    "n_rrss0022": {
+      "id": "n_rrss0022",
+      "text": "Vídeos cortos\n(sentencias recientes)",
+      "x": 1020,
+      "y": -290,
+      "parent": "n_rrss0002",
+      "children": [],
+      "depth": 3
+    },
+    "n_rrss0003": {
+      "id": "n_rrss0003",
+      "text": "Instagram / TikTok",
+      "x": 680,
+      "y": -230,
+      "parent": "n_rrss0001",
+      "children": ["n_rrss0031", "n_rrss0032"],
+      "depth": 2
+    },
+    "n_rrss0031": {
+      "id": "n_rrss0031",
+      "text": "Reels reforma laboral\n+ derechos clave",
+      "x": 1020,
+      "y": -260,
+      "parent": "n_rrss0003",
+      "children": [],
+      "depth": 3
+    },
+    "n_rrss0032": {
+      "id": "n_rrss0032",
+      "text": "Tips 30s:\n\"¿Te pueden despedir si...?\"",
+      "x": 1020,
+      "y": -190,
+      "parent": "n_rrss0003",
+      "children": [],
+      "depth": 3
+    },
+    "n_rrss0004": {
+      "id": "n_rrss0004",
+      "text": "YouTube Shorts\n(SEO-friendly)",
+      "x": 680,
+      "y": -140,
+      "parent": "n_rrss0001",
+      "children": [],
+      "depth": 2
+    },
+
+    "n_land0001": {
+      "id": "n_land0001",
+      "text": "Landing Pages",
+      "x": 340,
+      "y": 40,
+      "parent": "n_root0001",
+      "children": ["n_land0002", "n_land0003", "n_land0004", "n_land0005"],
+      "depth": 1,
+      "color": "#4a6c8c",
+      "bgColor": "#e3ebf3"
+    },
+    "n_land0002": {
+      "id": "n_land0002",
+      "text": "LP \"Despido improcedente\"\n(calculadora indemnización)",
+      "x": 680,
+      "y": -50,
+      "parent": "n_land0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_land0003": {
+      "id": "n_land0003",
+      "text": "LP \"Acoso laboral\"\n(formulario confidencial)",
+      "x": 680,
+      "y": 20,
+      "parent": "n_land0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_land0004": {
+      "id": "n_land0004",
+      "text": "LP \"Baja médica / IT\"\n+ checklist descargable",
+      "x": 680,
+      "y": 90,
+      "parent": "n_land0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_land0005": {
+      "id": "n_land0005",
+      "text": "LP \"Primera consulta gratuita\"\n(reserva agenda)",
+      "x": 680,
+      "y": 160,
+      "parent": "n_land0001",
+      "children": [],
+      "depth": 2
+    },
+
+    "n_seo00001": {
+      "id": "n_seo00001",
+      "text": "SEO + Contenidos",
+      "x": 340,
+      "y": 280,
+      "parent": "n_root0001",
+      "children": ["n_seo00002", "n_seo00003", "n_seo00004"],
+      "depth": 1,
+      "color": "#a8763e",
+      "bgColor": "#f4e8d8"
+    },
+    "n_seo00002": {
+      "id": "n_seo00002",
+      "text": "Blog jurídico\n(keywords long-tail)",
+      "x": 680,
+      "y": 210,
+      "parent": "n_seo00001",
+      "children": ["n_seo00021"],
+      "depth": 2
+    },
+    "n_seo00021": {
+      "id": "n_seo00021",
+      "text": "Clusters:\ndespido, vacaciones, ERE",
+      "x": 1020,
+      "y": 210,
+      "parent": "n_seo00002",
+      "children": [],
+      "depth": 3
+    },
+    "n_seo00003": {
+      "id": "n_seo00003",
+      "text": "Guías PDF descargables\n(lead magnet)",
+      "x": 680,
+      "y": 280,
+      "parent": "n_seo00001",
+      "children": [],
+      "depth": 2
+    },
+    "n_seo00004": {
+      "id": "n_seo00004",
+      "text": "Ficha Google Business\n+ reseñas locales",
+      "x": 680,
+      "y": 350,
+      "parent": "n_seo00001",
+      "children": [],
+      "depth": 2
+    },
+
+    "n_auto0001": {
+      "id": "n_auto0001",
+      "text": "Automatización / CRM",
+      "x": 340,
+      "y": 500,
+      "parent": "n_root0001",
+      "children": ["n_auto0002", "n_auto0003", "n_auto0004"],
+      "depth": 1,
+      "color": "#7a4e7c",
+      "bgColor": "#ece1ec"
+    },
+    "n_auto0002": {
+      "id": "n_auto0002",
+      "text": "Chatbot IA\n(triaje primera consulta)",
+      "x": 680,
+      "y": 430,
+      "parent": "n_auto0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_auto0003": {
+      "id": "n_auto0003",
+      "text": "Email nurturing\n(secuencias por caso)",
+      "x": 680,
+      "y": 500,
+      "parent": "n_auto0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_auto0004": {
+      "id": "n_auto0004",
+      "text": "Calendly / reserva online\n+ recordatorios SMS",
+      "x": 680,
+      "y": 570,
+      "parent": "n_auto0001",
+      "children": [],
+      "depth": 2
+    },
+
+    "n_repu0001": {
+      "id": "n_repu0001",
+      "text": "Reputación / Marca",
+      "x": 340,
+      "y": 720,
+      "parent": "n_root0001",
+      "children": ["n_repu0002", "n_repu0003", "n_repu0004"],
+      "depth": 1,
+      "color": "#2f6e6a",
+      "bgColor": "#fdfbf5"
+    },
+    "n_repu0002": {
+      "id": "n_repu0002",
+      "text": "Reseñas Google\n(post-caso ganado)",
+      "x": 680,
+      "y": 650,
+      "parent": "n_repu0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_repu0003": {
+      "id": "n_repu0003",
+      "text": "Testimonios vídeo\n(anonimizables)",
+      "x": 680,
+      "y": 720,
+      "parent": "n_repu0001",
+      "children": [],
+      "depth": 2
+    },
+    "n_repu0004": {
+      "id": "n_repu0004",
+      "text": "Apariciones prensa /\npodcasts del sector",
+      "x": 680,
+      "y": 790,
+      "parent": "n_repu0001",
+      "children": [],
+      "depth": 2
+    }
+  },
+  "exportedAt": "2026-05-25T09:35:00.000Z"
+}
