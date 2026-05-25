@@ -693,8 +693,8 @@
   .hamburger-menu {
     position: fixed;
     top: 64px;
-    left: 24px;
-    min-width: 200px;
+    right: 24px;
+    min-width: 220px;
     background: var(--paper);
     border: 1px solid rgba(28, 27, 24, 0.15);
     border-radius: 4px;
@@ -739,6 +739,14 @@
     background: rgba(61, 107, 79, 0.12);
     color: var(--child-1);
   }
+  .hamburger-menu .menu-item.primary {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .hamburger-menu .menu-item.primary:hover {
+    background: var(--accent);
+    color: var(--paper);
+  }
 
   /* Mobile: tighter spacing, smaller buttons, fewer visible elements */
   @media (max-width: 720px) {
@@ -749,7 +757,7 @@
     .controls { gap: 4px; flex: 0 0 auto; }
     .btn { padding: 6px 10px; font-size: 10px; }
     .btn.btn-icon, .btn.btn-hamburger { padding: 6px 8px; min-width: 32px; }
-    .hamburger-menu { top: 60px; left: 12px; right: 12px; min-width: 0; }
+    .hamburger-menu { top: 60px; right: 12px; left: 12px; min-width: 0; }
     .zoom-cluster { bottom: 16px; right: 16px; gap: 6px; }
     .zoom-indicator { padding: 6px 10px; font-size: 10px; }
     .font-panel { top: 60px; right: 12px; left: 12px; width: auto; }
@@ -768,9 +776,8 @@
     <span class="current-name" id="currentName" title="Clic para editar el título" spellcheck="false">Sin título</span>
   </div>
   <div class="controls">
-    <button class="btn btn-hamburger" id="btnMenu" title="Menú" aria-label="Menú">☰</button>
     <button class="btn btn-icon" id="btnFont" title="Fuente de los nodos" style="font-family: var(--node-font); font-weight: 600;">Aa</button>
-    <button class="btn primary" id="btnExportPng">Export PNG</button>
+    <button class="btn btn-hamburger" id="btnMenu" title="Menú" aria-label="Menú">☰</button>
   </div>
 </div>
 
@@ -782,6 +789,8 @@
   <button class="menu-item" data-action="export-json"><span class="icon">⬇</span>Export JSON</button>
   <button class="menu-item" data-action="json-folder"><span class="icon">📁</span>Carpeta JSON</button>
   <button class="menu-item" data-action="import-json"><span class="icon">⬆</span>Importar</button>
+  <div class="menu-divider"></div>
+  <button class="menu-item primary" data-action="export-png"><span class="icon">🖼</span>Export PNG</button>
 </div>
 
 <div class="font-panel" id="fontPanel"></div>
@@ -2533,7 +2542,7 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-document.getElementById('btnExportPng').addEventListener('click', exportPng);
+// (Export PNG is wired through the hamburger menu)
 
 // ============== FONT PICKER ==============
 const FONT_KEY = 'mindmap.nodeFont';
@@ -2639,6 +2648,7 @@ hamburgerMenu.addEventListener('click', (e) => {
   else if (action === 'export-json') exportJsonAction();
   else if (action === 'json-folder') manageJsonFolder();
   else if (action === 'import-json') importJsonAction();
+  else if (action === 'export-png') exportPng();
 });
 
 // Apply persisted font on startup
