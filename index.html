@@ -921,15 +921,20 @@ function renderConnections() {
     const entry = borderIntersect(cBox, pBox.cx, pBox.cy);
 
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    // Curve control points: pulled horizontally toward each other
+    // Curve control points: prefer horizontal S-curve always.
+    // Switch to vertical handles ONLY when the child is essentially stacked
+    // directly above/below the parent (very small horizontal offset).
+    const absDx = Math.abs(entry.x - exit.x);
+    const absDy = Math.abs(entry.y - exit.y);
     const dx = (entry.x - exit.x) * 0.5;
     const dy = (entry.y - exit.y) * 0.5;
-    // Use horizontal handle if the connection is mostly horizontal, vertical otherwise
     let c1x, c1y, c2x, c2y;
-    if (Math.abs(entry.x - exit.x) >= Math.abs(entry.y - exit.y)) {
+    if (absDx > 40) {
+      // Horizontal S-curve (default): the control points extend horizontally
       c1x = exit.x + dx; c1y = exit.y;
       c2x = entry.x - dx; c2y = entry.y;
     } else {
+      // Vertical S-curve: only when the node truly comes from above/below
       c1x = exit.x; c1y = exit.y + dy;
       c2x = entry.x; c2y = entry.y - dy;
     }
@@ -2609,8 +2614,9 @@ function exportPng() {
     const entry = borderIntersect(cBox, pBox.cx, pBox.cy);
     const ddx = (entry.x - exit.x) * 0.5;
     const ddy = (entry.y - exit.y) * 0.5;
+    const aDx = Math.abs(entry.x - exit.x);
     let c1x, c1y, c2x, c2y;
-    if (Math.abs(entry.x - exit.x) >= Math.abs(entry.y - exit.y)) {
+    if (aDx > 40) {
       c1x = exit.x + ddx; c1y = exit.y;
       c2x = entry.x - ddx; c2y = entry.y;
     } else {
