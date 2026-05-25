@@ -22,6 +22,7 @@
     --child-2: #4a6c8c;
     --child-3: #a8763e;
     --child-4: #7a4e7c;
+    --node-font: 'Fraunces', Georgia, serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -109,6 +110,11 @@
     background: var(--ink);
     border-color: var(--ink);
   }
+  .btn.toggle-on {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
   .btn.btn-icon {
     padding: 6px 10px;
     font-size: 14px;
@@ -160,7 +166,7 @@
     border-radius: 10px;
     box-shadow: 0 1px 2px rgba(28, 27, 24, 0.05), 0 4px 12px rgba(28, 27, 24, 0.06);
     cursor: grab;
-    font-family: 'Fraunces', serif;
+    font-family: var(--node-font);
     font-weight: 500;
     font-size: 15px;
     line-height: 1.35;
@@ -440,6 +446,48 @@
   }
 
   /* Storage list panel */
+  /* Font picker */
+  .font-panel {
+    position: fixed;
+    top: 64px;
+    right: 24px;
+    width: 240px;
+    max-height: 60vh;
+    overflow-y: auto;
+    background: var(--paper);
+    border: 1px solid rgba(28, 27, 24, 0.15);
+    border-radius: 4px;
+    box-shadow: 4px 4px 0 rgba(28, 27, 24, 0.1);
+    z-index: 110;
+    display: none;
+    padding: 6px;
+  }
+  .font-panel.open { display: block; }
+  .font-panel .font-option {
+    padding: 10px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1.2;
+    color: var(--ink);
+    border: 1px solid transparent;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .font-panel .font-option:hover { background: rgba(28, 27, 24, 0.05); }
+  .font-panel .font-option.active {
+    border-color: var(--accent);
+    background: rgba(200, 85, 61, 0.06);
+  }
+  .font-panel .font-option small {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 2px;
+  }
+
   .panel {
     position: fixed;
     top: 76px;
@@ -638,9 +686,13 @@
     <button class="btn" id="btnExportJson" title="Exportar JSON">Export JSON</button>
     <button class="btn btn-icon" id="btnJsonFolder" title="Carpeta de guardado JSON">📁</button>
     <button class="btn" id="btnImportJson">Importar</button>
+    <button class="btn btn-icon" id="btnFont" title="Fuente de los nodos" style="font-family: var(--node-font); font-weight: 600;">Aa</button>
+    <button class="btn" id="btnSnap" title="Alinear cajas a la rejilla (24px)">Snap</button>
     <button class="btn primary" id="btnExportPng">Export PNG</button>
   </div>
 </div>
+
+<div class="font-panel" id="fontPanel"></div>
 
 <div class="canvas-wrap" id="canvasWrap">
   <div class="canvas" id="canvas">
@@ -662,6 +714,7 @@
   <div><kbd>Shift</kbd> + clic seleccionar varios</div>
   <div><kbd>Shift</kbd> + drag selección por área</div>
   <div><kbd>Esc</kbd> limpiar selección</div>
+  <div><kbd>Aa</kbd> fuente · <kbd>Snap</kbd> alinear</div>
   <div><kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer</div>
   <div><kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>S</kbd> guardar</div>
 </div>
@@ -1099,11 +1152,17 @@ function bindNodeEvents(el, node) {
     });
 
     const onMove = (ev) => {
-      const dx = (ev.clientX - dragStart.x) / state.zoom;
-      const dy = (ev.clientY - dragStart.y) / state.zoom;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
+      const rawDx = (ev.clientX - dragStart.x) / state.zoom;
+      const rawDy = (ev.clientY - dragStart.y) / state.zoom;
+      if (Math.abs(rawDx) > 2 || Math.abs(rawDy) > 2) moved = true;
 
-      // Move every node in the set by the same delta first
+      // Compute the anchor (dragged node) target with snap applied
+      const anchorTargetX = snapVal(dragStart.nodeX + rawDx);
+      const anchorTargetY = snapVal(dragStart.nodeY + rawDy);
+      const dx = anchorTargetX - dragStart.nodeX;
+      const dy = anchorTargetY - dragStart.nodeY;
+
+      // Move every node in the set by the same (snapped) delta
       movers.forEach(m => {
         state.nodes[m.id].x = m.startX + dx;
         state.nodes[m.id].y = m.startY + dy;
@@ -1117,7 +1176,7 @@ function bindNodeEvents(el, node) {
           movers.forEach(m => {
             if (m.id === node.id) return;
             const origOffsetX = m.startX - dragStart.nodeX;
-            state.nodes[m.id].x = node.x - origOffsetX;
+            state.nodes[m.id].x = snapVal(node.x - origOffsetX);
           });
         }
       }
@@ -2342,6 +2401,123 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 
 document.getElementById('btnExportPng').addEventListener('click', exportPng);
 
+// ============== FONT PICKER ==============
+const FONT_KEY = 'mindmap.nodeFont';
+const FONT_OPTIONS = [
+  { name: 'Fraunces',           fallback: 'Georgia, serif',          tag: 'Serif' },
+  { name: 'Lora',               fallback: 'Georgia, serif',          tag: 'Serif' },
+  { name: 'EB Garamond',        fallback: 'Georgia, serif',          tag: 'Serif clásica' },
+  { name: 'Playfair Display',   fallback: 'Georgia, serif',          tag: 'Serif display' },
+  { name: 'Crimson Pro',        fallback: 'Georgia, serif',          tag: 'Serif lectura' },
+  { name: 'Inter',              fallback: 'system-ui, sans-serif',   tag: 'Sans' },
+  { name: 'DM Sans',            fallback: 'system-ui, sans-serif',   tag: 'Sans' },
+  { name: 'Manrope',            fallback: 'system-ui, sans-serif',   tag: 'Sans redondeada' },
+  { name: 'Work Sans',          fallback: 'system-ui, sans-serif',   tag: 'Sans' },
+  { name: 'Plus Jakarta Sans',  fallback: 'system-ui, sans-serif',   tag: 'Sans' },
+  { name: 'Space Grotesk',      fallback: 'system-ui, sans-serif',   tag: 'Sans display' },
+  { name: 'Outfit',             fallback: 'system-ui, sans-serif',   tag: 'Display geom.' },
+  { name: 'JetBrains Mono',     fallback: 'ui-monospace, monospace', tag: 'Mono' },
+  { name: 'IBM Plex Mono',      fallback: 'ui-monospace, monospace', tag: 'Mono' },
+  { name: 'Caveat',             fallback: 'cursive',                 tag: 'Manuscrita' },
+];
+
+const loadedFonts = new Set(['Fraunces', 'JetBrains Mono']); // already in <head>
+
+function loadGoogleFont(family) {
+  if (loadedFonts.has(family)) return;
+  const slug = family.replace(/\s+/g, '+');
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${slug}:wght@400;500;600&display=swap`;
+  document.head.appendChild(link);
+  loadedFonts.add(family);
+}
+
+function applyNodeFont(family) {
+  const opt = FONT_OPTIONS.find(f => f.name === family) || FONT_OPTIONS[0];
+  loadGoogleFont(opt.name);
+  document.documentElement.style.setProperty('--node-font', `'${opt.name}', ${opt.fallback}`);
+  localStorage.setItem(FONT_KEY, opt.name);
+  // Update active marker in panel
+  document.querySelectorAll('#fontPanel .font-option').forEach(el => {
+    el.classList.toggle('active', el.dataset.font === opt.name);
+  });
+}
+
+function getCurrentNodeFont() {
+  return localStorage.getItem(FONT_KEY) || 'Fraunces';
+}
+
+function buildFontPanel() {
+  const panel = document.getElementById('fontPanel');
+  const current = getCurrentNodeFont();
+  panel.innerHTML = FONT_OPTIONS.map(f => `
+    <div class="font-option${f.name === current ? ' active' : ''}" data-font="${f.name}" style="font-family: '${f.name}', ${f.fallback};">
+      ${f.name}
+      <small>${f.tag}</small>
+    </div>
+  `).join('');
+  // Preload every font so the previews render correctly the first time
+  FONT_OPTIONS.forEach(f => loadGoogleFont(f.name));
+  panel.querySelectorAll('.font-option').forEach(el => {
+    el.addEventListener('click', () => {
+      applyNodeFont(el.dataset.font);
+    });
+  });
+}
+
+document.getElementById('btnFont').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const panel = document.getElementById('fontPanel');
+  if (panel.children.length === 0) buildFontPanel();
+  panel.classList.toggle('open');
+});
+document.addEventListener('mousedown', (e) => {
+  const panel = document.getElementById('fontPanel');
+  if (!panel.classList.contains('open')) return;
+  if (e.target.closest('#fontPanel') || e.target.closest('#btnFont')) return;
+  panel.classList.remove('open');
+});
+
+// Apply persisted font on startup
+applyNodeFont(getCurrentNodeFont());
+
+// ============== SNAP TO GRID ==============
+const SNAP_KEY = 'mindmap.snap';
+const SNAP_GRID = 24;  // matches the background dot pattern spacing
+state.snapEnabled = localStorage.getItem(SNAP_KEY) === '1';
+
+function snapVal(v) {
+  return state.snapEnabled ? Math.round(v / SNAP_GRID) * SNAP_GRID : v;
+}
+
+function updateSnapButton() {
+  const btn = document.getElementById('btnSnap');
+  btn.classList.toggle('toggle-on', state.snapEnabled);
+  btn.title = state.snapEnabled
+    ? `Snap activo (${SNAP_GRID}px) — clic para desactivar`
+    : `Alinear cajas a la rejilla (${SNAP_GRID}px)`;
+}
+
+document.getElementById('btnSnap').addEventListener('click', () => {
+  state.snapEnabled = !state.snapEnabled;
+  localStorage.setItem(SNAP_KEY, state.snapEnabled ? '1' : '0');
+  updateSnapButton();
+  if (state.snapEnabled) {
+    // Snap every existing node immediately so the toggle is visible
+    Object.values(state.nodes).forEach(n => {
+      n.x = snapVal(n.x);
+      n.y = snapVal(n.y);
+    });
+    render();
+    saveSnapshot();
+    toast('Cajas alineadas a la rejilla');
+  } else {
+    toast('Snap desactivado');
+  }
+});
+updateSnapButton();
+
 function exportPng() {
   const nodes = Object.values(state.nodes);
   if (nodes.length === 0) {
@@ -2491,7 +2667,8 @@ function exportPng() {
     ctx.fillStyle = textColor;
     const fontSize = isRoot ? 17 : 15;
     const fontWeight = isRoot ? 600 : 500;
-    ctx.font = `${fontWeight} ${fontSize}px Fraunces, Georgia, serif`;
+    const nodeFontCss = getComputedStyle(document.documentElement).getPropertyValue('--node-font').trim() || "'Fraunces', Georgia, serif";
+    ctx.font = `${fontWeight} ${fontSize}px ${nodeFontCss}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     // Wrap text if needed
