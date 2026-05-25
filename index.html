@@ -437,10 +437,16 @@
     box-shadow: 0 2px 8px rgba(28, 27, 24, 0.18);
   }
 
-  .zoom-indicator {
+  .zoom-cluster {
     position: fixed;
     bottom: 24px;
     right: 24px;
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+    z-index: 95;
+  }
+  .zoom-indicator {
     background: var(--paper);
     border: 1px solid rgba(28, 27, 24, 0.15);
     padding: 8px 14px;
@@ -675,6 +681,81 @@
     white-space: nowrap;
     overflow: visible;
   }
+
+  /* Hamburger menu */
+  .btn.btn-hamburger {
+    padding: 6px 10px;
+    font-size: 16px;
+    line-height: 1;
+    letter-spacing: 0;
+    min-width: 36px;
+  }
+  .hamburger-menu {
+    position: fixed;
+    top: 64px;
+    left: 24px;
+    min-width: 200px;
+    background: var(--paper);
+    border: 1px solid rgba(28, 27, 24, 0.15);
+    border-radius: 4px;
+    box-shadow: 4px 4px 0 rgba(28, 27, 24, 0.1);
+    z-index: 110;
+    display: none;
+    padding: 6px;
+  }
+  .hamburger-menu.open { display: block; }
+  .hamburger-menu .menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink);
+    background: transparent;
+    border: none;
+    width: 100%;
+    text-align: left;
+    transition: background 0.12s ease;
+  }
+  .hamburger-menu .menu-item:hover {
+    background: rgba(28, 27, 24, 0.06);
+  }
+  .hamburger-menu .menu-item .icon {
+    width: 16px;
+    text-align: center;
+    font-size: 13px;
+  }
+  .hamburger-menu .menu-divider {
+    height: 1px;
+    background: rgba(28, 27, 24, 0.1);
+    margin: 4px 6px;
+  }
+  .hamburger-menu .menu-item.active {
+    background: rgba(61, 107, 79, 0.12);
+    color: var(--child-1);
+  }
+
+  /* Mobile: tighter spacing, smaller buttons, fewer visible elements */
+  @media (max-width: 720px) {
+    .topbar { padding: 0 12px; height: 52px; }
+    .brand { font-size: 15px; gap: 6px; min-width: 0; flex: 0 1 auto; overflow: hidden; }
+    .brand small { display: none; }
+    .current-name { max-width: 140px; font-size: 14px; }
+    .controls { gap: 4px; flex: 0 0 auto; }
+    .btn { padding: 6px 10px; font-size: 10px; }
+    .btn.btn-icon, .btn.btn-hamburger { padding: 6px 8px; min-width: 32px; }
+    .hamburger-menu { top: 60px; left: 12px; right: 12px; min-width: 0; }
+    .zoom-cluster { bottom: 16px; right: 16px; gap: 6px; }
+    .zoom-indicator { padding: 6px 10px; font-size: 10px; }
+    .font-panel { top: 60px; right: 12px; left: 12px; width: auto; }
+    .help { display: none; }   /* shortcuts are keyboard-only; hide on mobile */
+    .fab-add { bottom: 76px; right: 16px; }
+  }
 </style>
 </head>
 <body>
@@ -687,16 +768,20 @@
     <span class="current-name" id="currentName" title="Clic para editar el título" spellcheck="false">Sin título</span>
   </div>
   <div class="controls">
-    <button class="btn" id="btnNew">Nuevo</button>
-    <button class="btn" id="btnSave">Guardar</button>
-    <button class="btn" id="btnList">Mis mapas</button>
-    <button class="btn" id="btnExportJson" title="Exportar JSON">Export JSON</button>
-    <button class="btn btn-icon" id="btnJsonFolder" title="Carpeta de guardado JSON">📁</button>
-    <button class="btn" id="btnImportJson">Importar</button>
+    <button class="btn btn-hamburger" id="btnMenu" title="Menú" aria-label="Menú">☰</button>
     <button class="btn btn-icon" id="btnFont" title="Fuente de los nodos" style="font-family: var(--node-font); font-weight: 600;">Aa</button>
-    <button class="btn" id="btnSnap" title="Alinear cajas a la rejilla (24px)">Snap</button>
     <button class="btn primary" id="btnExportPng">Export PNG</button>
   </div>
+</div>
+
+<div class="hamburger-menu" id="hamburgerMenu">
+  <button class="menu-item" data-action="new"><span class="icon">＋</span>Nuevo</button>
+  <button class="menu-item" data-action="save"><span class="icon">💾</span>Guardar</button>
+  <button class="menu-item" data-action="list"><span class="icon">📋</span>Mis mapas</button>
+  <div class="menu-divider"></div>
+  <button class="menu-item" data-action="export-json"><span class="icon">⬇</span>Export JSON</button>
+  <button class="menu-item" data-action="json-folder"><span class="icon">📁</span>Carpeta JSON</button>
+  <button class="menu-item" data-action="import-json"><span class="icon">⬆</span>Importar</button>
 </div>
 
 <div class="font-panel" id="fontPanel"></div>
@@ -728,7 +813,10 @@
 
 <button class="fab-add" id="fabAdd" title="Añadir nodo (Tab para hijo desde teclado)" aria-label="Añadir nodo">+</button>
 
-<div class="zoom-indicator" id="zoomIndicator">100%</div>
+<div class="zoom-cluster">
+  <button class="btn" id="btnSnap" title="Alinear cajas a la rejilla (24px)">Snap</button>
+  <div class="zoom-indicator" id="zoomIndicator">100%</div>
+</div>
 
 <div class="panel" id="panel">
   <div class="panel-header">
@@ -1435,12 +1523,28 @@ function openContextMenu(nodeId, clientX, clientY) {
   closeContextMenu();
   const node = state.nodes[nodeId];
   if (!node) return;
-  state.selectedId = nodeId;
+
+  // If the right-clicked node is part of an existing multi-selection,
+  // keep that selection so the menu acts on the whole group. Otherwise
+  // collapse to a single selection of this node.
+  if (!isAnySelected(nodeId)) {
+    setSingleSelection(nodeId);
+  }
   render();
+
+  // Compute the target nodes the menu actions apply to
+  const selectedSet = allSelectedIds();
+  const targetIds = selectedSet.size > 1 && selectedSet.has(nodeId)
+    ? [...selectedSet]
+    : [nodeId];
+  const multi = targetIds.length > 1;
+  // Decide whether to show the "line color" section: only if at least one target is not the root
+  const anyNonRoot = targetIds.some(id => id !== state.rootId);
 
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
   menu.innerHTML = `
+    ${multi ? `<div class="ctx-section" style="color: var(--accent);">${targetIds.length} cajas seleccionadas</div><div class="ctx-divider"></div>` : ''}
     <div class="ctx-section">Color del borde</div>
     <div class="color-grid" data-target="border">
       <div class="color-swatch reset" data-color="" title="Por defecto">↺</div>
@@ -1452,7 +1556,7 @@ function openContextMenu(nodeId, clientX, clientY) {
       <div class="color-swatch reset" data-color="" title="Por defecto">↺</div>
       ${BG_PALETTE.map(c => `<div class="color-swatch" data-color="${c.value}" title="${c.name}" style="background:${c.value}"></div>`).join('')}
     </div>
-    ${nodeId !== state.rootId ? `
+    ${anyNonRoot ? `
       <div class="ctx-divider"></div>
       <div class="ctx-section">Color de la línea</div>
       <div class="color-grid" data-target="line">
@@ -1461,8 +1565,8 @@ function openContextMenu(nodeId, clientX, clientY) {
       </div>
     ` : ''}
     <div class="ctx-divider"></div>
-    <div class="ctx-item" data-action="edit">✎ Editar texto</div>
-    ${nodeId !== state.rootId ? '<div class="ctx-item danger" data-action="delete">⌫ Eliminar nodo</div>' : ''}
+    ${!multi ? '<div class="ctx-item" data-action="edit">✎ Editar texto</div>' : ''}
+    ${anyNonRoot ? `<div class="ctx-item danger" data-action="delete">⌫ ${multi ? `Eliminar ${targetIds.filter(id => id !== state.rootId).length} nodos` : 'Eliminar nodo'}</div>` : ''}
   `;
   document.body.appendChild(menu);
 
@@ -1476,44 +1580,65 @@ function openContextMenu(nodeId, clientX, clientY) {
   menu.style.left = mx + 'px';
   menu.style.top = my + 'px';
 
-  // Mark active swatches
+  // Helper: do every target have the same value for a given attribute?
+  function unanimousVal(attr) {
+    const first = state.nodes[targetIds[0]][attr] || '';
+    return targetIds.every(id => (state.nodes[id][attr] || '') === first) ? first : null;
+  }
+  const borderShared = unanimousVal('color');
+  const bgShared = unanimousVal('bgColor');
+  const lineShared = unanimousVal('lineColor');
+
+  // Mark active swatches based on the right-clicked node (reference)
   menu.querySelectorAll('[data-target="border"] .color-swatch').forEach(sw => {
-    if ((node.color || '') === sw.dataset.color) sw.classList.add('active');
+    if (borderShared !== null && borderShared === sw.dataset.color) sw.classList.add('active');
   });
   menu.querySelectorAll('[data-target="bg"] .color-swatch').forEach(sw => {
-    if ((node.bgColor || '') === sw.dataset.color) sw.classList.add('active');
+    if (bgShared !== null && bgShared === sw.dataset.color) sw.classList.add('active');
   });
   menu.querySelectorAll('[data-target="line"] .color-swatch').forEach(sw => {
-    if ((node.lineColor || '') === sw.dataset.color) sw.classList.add('active');
+    if (lineShared !== null && lineShared === sw.dataset.color) sw.classList.add('active');
   });
 
-  // Wire up clicks
+  // Wire up clicks — apply to every target node
   menu.querySelectorAll('.color-swatch').forEach(sw => {
     sw.addEventListener('click', () => {
       const target = sw.parentElement.dataset.target;
       const value = sw.dataset.color;
-      if (target === 'border') {
-        if (value) node.color = value; else delete node.color;
-      } else if (target === 'bg') {
-        if (value) node.bgColor = value; else delete node.bgColor;
-      } else if (target === 'line') {
-        if (value) node.lineColor = value; else delete node.lineColor;
-      }
+      targetIds.forEach(id => {
+        const n = state.nodes[id];
+        if (!n) return;
+        if (target === 'border') {
+          if (value) n.color = value; else delete n.color;
+        } else if (target === 'bg') {
+          if (value) n.bgColor = value; else delete n.bgColor;
+        } else if (target === 'line') {
+          // Line color doesn't apply to the root (no incoming line)
+          if (id === state.rootId) return;
+          if (value) n.lineColor = value; else delete n.lineColor;
+        }
+      });
       render();
       saveSnapshot();
       closeContextMenu();
     });
   });
 
-  menu.querySelector('[data-action="edit"]').addEventListener('click', () => {
-    closeContextMenu();
-    setTimeout(() => startEditing(nodeId), 30);
-  });
+  const editBtn = menu.querySelector('[data-action="edit"]');
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      closeContextMenu();
+      setTimeout(() => startEditing(nodeId), 30);
+    });
+  }
   const delBtn = menu.querySelector('[data-action="delete"]');
   if (delBtn) {
     delBtn.addEventListener('click', () => {
       closeContextMenu();
-      deleteNode(nodeId);
+      const toDelete = targetIds.filter(id => id !== state.rootId && state.nodes[id]);
+      // Delete from deepest to shallowest so descendants aren't orphaned mid-loop
+      toDelete.sort((a, b) => state.nodes[b].depth - state.nodes[a].depth);
+      toDelete.forEach(id => { if (state.nodes[id]) deleteNode(id); });
     });
   }
 
@@ -2044,10 +2169,10 @@ function deleteMap(id) {
 const panel = document.getElementById('panel');
 const panelList = document.getElementById('panelList');
 
-document.getElementById('btnList').addEventListener('click', () => {
+function listMapsAction() {
   panel.classList.toggle('open');
   renderPanel();
-});
+}
 document.getElementById('closePanel').addEventListener('click', () => {
   panel.classList.remove('open');
 });
@@ -2132,7 +2257,7 @@ function openSaveModal() {
 }
 
 // ============== TOOLBAR ACTIONS ==============
-document.getElementById('btnNew').addEventListener('click', () => {
+function newMapAction() {
   if (confirm('¿Crear un mapa nuevo? Si no has guardado se perderá.')) {
     state.nodes = {};
     state.currentName = 'Sin título';
@@ -2146,9 +2271,7 @@ document.getElementById('btnNew').addEventListener('click', () => {
     updateCurrentNameLabel();
     saveSnapshot();
   }
-});
-
-document.getElementById('btnSave').addEventListener('click', openSaveModal);
+}
 
 // ============== JSON FOLDER (File System Access API) ==============
 const FS_DB_NAME = 'mindmap_fs_v1';
@@ -2213,7 +2336,7 @@ async function ensurePermission(handle, mode = 'readwrite') {
 }
 
 function updateFolderButtonUI() {
-  const btn = document.getElementById('btnJsonFolder');
+  const btn = document.querySelector('.hamburger-menu [data-action="json-folder"]');
   if (!btn) return;
   if (jsonFolderHandle) {
     btn.classList.add('active');
@@ -2368,8 +2491,7 @@ async function manageJsonFolder() {
   updateFolderButtonUI();
 })();
 
-document.getElementById('btnExportJson').addEventListener('click', exportJsonAction);
-document.getElementById('btnJsonFolder').addEventListener('click', manageJsonFolder);
+// (Export JSON and Carpeta JSON are wired through the hamburger menu below)
 
 // Floating "+" button: add a child to the selected node (or to root if nothing selected)
 document.getElementById('fabAdd').addEventListener('click', (e) => {
@@ -2383,9 +2505,9 @@ document.getElementById('fabAdd').addEventListener('click', (e) => {
   addChild(parentId);
 });
 
-document.getElementById('btnImportJson').addEventListener('click', () => {
+function importJsonAction() {
   document.getElementById('fileInput').click();
-});
+}
 document.getElementById('fileInput').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -2483,12 +2605,40 @@ document.getElementById('btnFont').addEventListener('click', (e) => {
   const panel = document.getElementById('fontPanel');
   if (panel.children.length === 0) buildFontPanel();
   panel.classList.toggle('open');
+  // close hamburger if open
+  document.getElementById('hamburgerMenu').classList.remove('open');
 });
 document.addEventListener('mousedown', (e) => {
   const panel = document.getElementById('fontPanel');
   if (!panel.classList.contains('open')) return;
   if (e.target.closest('#fontPanel') || e.target.closest('#btnFont')) return;
   panel.classList.remove('open');
+});
+
+// ============== HAMBURGER MENU ==============
+const hamburgerMenu = document.getElementById('hamburgerMenu');
+document.getElementById('btnMenu').addEventListener('click', (e) => {
+  e.stopPropagation();
+  hamburgerMenu.classList.toggle('open');
+  // close font panel if open
+  document.getElementById('fontPanel').classList.remove('open');
+});
+document.addEventListener('mousedown', (e) => {
+  if (!hamburgerMenu.classList.contains('open')) return;
+  if (e.target.closest('#hamburgerMenu') || e.target.closest('#btnMenu')) return;
+  hamburgerMenu.classList.remove('open');
+});
+hamburgerMenu.addEventListener('click', (e) => {
+  const item = e.target.closest('.menu-item');
+  if (!item) return;
+  hamburgerMenu.classList.remove('open');
+  const action = item.dataset.action;
+  if (action === 'new') newMapAction();
+  else if (action === 'save') openSaveModal();
+  else if (action === 'list') listMapsAction();
+  else if (action === 'export-json') exportJsonAction();
+  else if (action === 'json-folder') manageJsonFolder();
+  else if (action === 'import-json') importJsonAction();
 });
 
 // Apply persisted font on startup
