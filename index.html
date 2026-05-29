@@ -694,22 +694,22 @@
     position: fixed;
     top: 64px;
     right: 24px;
-    min-width: 220px;
-    background: var(--paper);
-    border: 1px solid rgba(28, 27, 24, 0.15);
-    border-radius: 4px;
-    box-shadow: 4px 4px 0 rgba(28, 27, 24, 0.1);
+    min-width: 240px;
+    background: #ffffff;
+    border: 1px solid rgba(28, 27, 24, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(28, 27, 24, 0.10), 0 2px 6px rgba(28, 27, 24, 0.06);
     z-index: 110;
     display: none;
-    padding: 6px;
+    padding: 8px;
   }
   .hamburger-menu.open { display: block; }
   .hamburger-menu .menu-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 9px 12px;
-    border-radius: 3px;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
     cursor: pointer;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
@@ -720,33 +720,50 @@
     border: none;
     width: 100%;
     text-align: left;
-    transition: background 0.12s ease;
+    transition: background 0.12s ease, color 0.12s ease;
   }
   .hamburger-menu .menu-item:hover {
-    background: rgba(28, 27, 24, 0.06);
+    background: rgba(28, 27, 24, 0.05);
   }
   .hamburger-menu .menu-item .icon {
-    width: 16px;
-    text-align: center;
-    font-size: 13px;
+    width: 18px;
+    height: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+    flex-shrink: 0;
+  }
+  .hamburger-menu .menu-item:hover .icon { color: var(--ink); }
+  .hamburger-menu .menu-item .icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .hamburger-menu .menu-divider {
     height: 1px;
-    background: rgba(28, 27, 24, 0.1);
-    margin: 4px 6px;
+    background: rgba(28, 27, 24, 0.08);
+    margin: 6px 8px;
   }
   .hamburger-menu .menu-item.active {
     background: rgba(61, 107, 79, 0.12);
     color: var(--child-1);
   }
+  .hamburger-menu .menu-item.active .icon { color: var(--child-1); }
   .hamburger-menu .menu-item.primary {
     color: var(--accent);
     font-weight: 600;
   }
+  .hamburger-menu .menu-item.primary .icon { color: var(--accent); }
   .hamburger-menu .menu-item.primary:hover {
     background: var(--accent);
-    color: var(--paper);
+    color: #ffffff;
   }
+  .hamburger-menu .menu-item.primary:hover .icon { color: #ffffff; }
 
   /* Mobile: tighter spacing, smaller buttons, fewer visible elements */
   @media (max-width: 720px) {
@@ -782,15 +799,15 @@
 </div>
 
 <div class="hamburger-menu" id="hamburgerMenu">
-  <button class="menu-item" data-action="new"><span class="icon">＋</span>Nuevo</button>
-  <button class="menu-item" data-action="save"><span class="icon">💾</span>Guardar</button>
-  <button class="menu-item" data-action="list"><span class="icon">📋</span>Mis mapas</button>
+  <button class="menu-item" data-action="new"><span class="icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg></span>Nuevo</button>
+  <button class="menu-item" data-action="save"><span class="icon"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg></span>Guardar</button>
+  <button class="menu-item" data-action="list"><span class="icon"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>Mis mapas</button>
   <div class="menu-divider"></div>
-  <button class="menu-item" data-action="export-json"><span class="icon">⬇</span>Export JSON</button>
-  <button class="menu-item" data-action="json-folder"><span class="icon">📁</span>Carpeta JSON</button>
-  <button class="menu-item" data-action="import-json"><span class="icon">⬆</span>Importar</button>
+  <button class="menu-item" data-action="export-json"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Export JSON</button>
+  <button class="menu-item" data-action="json-folder"><span class="icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>Carpeta JSON</button>
+  <button class="menu-item" data-action="import-json"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>Importar</button>
   <div class="menu-divider"></div>
-  <button class="menu-item primary" data-action="export-png"><span class="icon">🖼</span>Export PNG</button>
+  <button class="menu-item primary" data-action="export-png"><span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>Export PNG</button>
 </div>
 
 <div class="font-panel" id="fontPanel"></div>
