@@ -9,8 +9,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #f4f1ea;
-    --bg-dot: #d9d3c4;
+    --bg: #ffffff;
+    --bg-dot: #e2e2e2;
     --ink: #1c1b18;
     --ink-soft: #5a564d;
     --accent: #c8553d;
@@ -22,7 +22,7 @@
     --child-2: #4a6c8c;
     --child-3: #a8763e;
     --child-4: #7a4e7c;
-    --node-font: 'Fraunces', Georgia, serif;
+    --node-font: Arial, Helvetica, sans-serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -49,7 +49,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: rgba(253, 251, 245, 0.85);
+    background: #ffffff;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(28, 27, 24, 0.08);
@@ -63,12 +63,14 @@
     display: flex;
     align-items: center;
     gap: 10px;
+    line-height: 1;
   }
   .brand-dot {
     width: 10px; height: 10px;
     background: var(--accent);
     border-radius: 50%;
     display: inline-block;
+    flex-shrink: 0;
   }
   .brand small {
     font-family: 'JetBrains Mono', monospace;
@@ -77,6 +79,9 @@
     text-transform: uppercase;
     letter-spacing: 0.15em;
     margin-left: 6px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
   }
   .controls {
     display: flex;
@@ -120,6 +125,7 @@
     font-size: 14px;
     letter-spacing: 0;
     line-height: 1;
+    border-radius: 10px;
   }
   .btn.btn-icon.active {
     background: rgba(61, 107, 79, 0.12);
@@ -155,6 +161,7 @@
     width: 100%; height: 100%;
     pointer-events: none;
     overflow: visible;
+    z-index: 5;
   }
   .node {
     position: absolute;
@@ -183,9 +190,10 @@
     text-align: center;
   }
   .node.root {
-    background: var(--ink);
-    color: var(--paper);
+    background: #ffffff;
+    color: var(--ink);
     border-color: var(--ink);
+    border-width: 2px;
     font-size: 17px;
     font-weight: 600;
     padding: 14px 22px;
@@ -352,23 +360,24 @@
     position: fixed;
     bottom: 24px;
     left: 24px;
-    background: var(--paper);
-    border: 1px solid rgba(28, 27, 24, 0.15);
-    border-radius: 4px;
-    padding: 16px 20px;
+    background: #ffffff;
+    border: 1px solid rgba(28, 27, 24, 0.12);
+    border-radius: 12px;
+    padding: 18px 22px;
     font-family: 'JetBrains Mono', monospace;
     font-size: 11px;
     line-height: 1.8;
     color: var(--ink-soft);
-    box-shadow: 2px 2px 0 rgba(28, 27, 24, 0.1);
-    max-width: 280px;
+    box-shadow: 0 8px 24px rgba(28, 27, 24, 0.10), 0 2px 6px rgba(28, 27, 24, 0.06);
+    max-width: 300px;
     z-index: 50;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.25s ease, transform 0.25s ease;
   }
   .help.hidden {
     opacity: 0;
     transform: translateY(10px);
     pointer-events: none;
+    display: none;
   }
   .help h3 {
     font-family: 'Fraunces', serif;
@@ -638,17 +647,19 @@
   }
 
   .current-name {
-    font-family: 'Fraunces', serif;
-    font-size: 14px;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 13px;
     color: var(--ink-soft);
-    font-style: italic;
-    margin-left: 18px;
-    padding: 3px 8px;
+    font-style: normal;
     margin-left: 10px;
-    border-radius: 3px;
+    padding: 4px 8px;
+    border-radius: 6px;
     border: 1px solid transparent;
     cursor: text;
     outline: none;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     min-width: 60px;
     max-width: 340px;
@@ -673,7 +684,7 @@
   }
   .current-name:focus,
   .current-name.editing {
-    background: var(--paper);
+    background: #ffffff;
     border-color: rgba(28, 27, 24, 0.2);
     color: var(--ink);
     font-style: normal;
@@ -689,6 +700,7 @@
     line-height: 1;
     letter-spacing: 0;
     min-width: 36px;
+    border-radius: 10px;
   }
   .hamburger-menu {
     position: fixed;
@@ -806,6 +818,8 @@
   <button class="menu-item" data-action="export-json"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Export JSON</button>
   <button class="menu-item" data-action="json-folder"><span class="icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>Carpeta JSON</button>
   <button class="menu-item" data-action="import-json"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>Importar</button>
+  <div class="menu-divider"></div>
+  <button class="menu-item" data-action="shortcuts"><span class="icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="14" y1="8" x2="14.01" y2="8"/><line x1="18" y1="8" x2="18.01" y2="8"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="10.01" y2="12"/><line x1="14" y1="12" x2="14.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg></span>Atajos</button>
   <div class="menu-divider"></div>
   <button class="menu-item primary" data-action="export-png"><span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>Export PNG</button>
 </div>
@@ -1068,6 +1082,14 @@ function renderConnections() {
     path.setAttribute('fill', 'none');
     path.setAttribute('stroke-linecap', 'round');
     svg.appendChild(path);
+
+    // Bolita en el origen (salida del nodo padre) para tapar la unión
+    const dotStart = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dotStart.setAttribute('cx', exit.x);
+    dotStart.setAttribute('cy', exit.y);
+    dotStart.setAttribute('r', strokeW + 1.5);
+    dotStart.setAttribute('fill', strokeColor);
+    svg.appendChild(dotStart);
 
     // Bolita en la junta (entrada al nodo hijo) para tapar la unión
     const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -2564,6 +2586,7 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
 // ============== FONT PICKER ==============
 const FONT_KEY = 'mindmap.nodeFont';
 const FONT_OPTIONS = [
+  { name: 'Arial',              fallback: 'Helvetica, sans-serif',   tag: 'Sans sistema', system: true },
   { name: 'Fraunces',           fallback: 'Georgia, serif',          tag: 'Serif' },
   { name: 'Lora',               fallback: 'Georgia, serif',          tag: 'Serif' },
   { name: 'EB Garamond',        fallback: 'Georgia, serif',          tag: 'Serif clásica' },
@@ -2581,10 +2604,12 @@ const FONT_OPTIONS = [
   { name: 'Caveat',             fallback: 'cursive',                 tag: 'Manuscrita' },
 ];
 
-const loadedFonts = new Set(['Fraunces', 'JetBrains Mono']); // already in <head>
+const loadedFonts = new Set(['Arial', 'Fraunces', 'JetBrains Mono']); // already in <head> or system fonts
 
 function loadGoogleFont(family) {
   if (loadedFonts.has(family)) return;
+  const opt = FONT_OPTIONS.find(f => f.name === family);
+  if (opt && opt.system) { loadedFonts.add(family); return; }
   const slug = family.replace(/\s+/g, '+');
   const link = document.createElement('link');
   link.rel = 'stylesheet';
@@ -2605,7 +2630,7 @@ function applyNodeFont(family) {
 }
 
 function getCurrentNodeFont() {
-  return localStorage.getItem(FONT_KEY) || 'Fraunces';
+  return localStorage.getItem(FONT_KEY) || 'Arial';
 }
 
 function buildFontPanel() {
@@ -2666,6 +2691,10 @@ hamburgerMenu.addEventListener('click', (e) => {
   else if (action === 'json-folder') manageJsonFolder();
   else if (action === 'import-json') importJsonAction();
   else if (action === 'export-png') exportPng();
+  else if (action === 'shortcuts') {
+    document.getElementById('help').classList.toggle('hidden');
+    localStorage.setItem('mindmap_help_hidden', document.getElementById('help').classList.contains('hidden') ? '1' : '0');
+  }
 });
 
 // Apply persisted font on startup
@@ -2938,7 +2967,8 @@ document.getElementById('helpToggle').addEventListener('click', () => {
   document.getElementById('help').classList.add('hidden');
   localStorage.setItem('mindmap_help_hidden', '1');
 });
-if (localStorage.getItem('mindmap_help_hidden') === '1') {
+// Hidden by default; open via hamburger menu → Atajos
+if (localStorage.getItem('mindmap_help_hidden') !== '0') {
   document.getElementById('help').classList.add('hidden');
 }
 
