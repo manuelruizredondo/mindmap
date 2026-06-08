@@ -820,6 +820,7 @@
   <button class="menu-item" data-action="import-json"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>Importar</button>
   <div class="menu-divider"></div>
   <button class="menu-item" data-action="shortcuts"><span class="icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="14" y1="8" x2="14.01" y2="8"/><line x1="18" y1="8" x2="18.01" y2="8"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="10.01" y2="12"/><line x1="14" y1="12" x2="14.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg></span>Atajos</button>
+  <button class="menu-item" data-action="download-skill"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="12" y1="6" x2="12" y2="14"/><polyline points="9 11 12 14 15 11"/></svg></span>Skill para IA</button>
   <div class="menu-divider"></div>
   <button class="menu-item primary" data-action="export-png"><span class="icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>Export PNG</button>
 </div>
@@ -880,6 +881,149 @@
 <div class="toast" id="toast"></div>
 
 <input type="file" id="fileInput" accept=".json" style="display:none">
+
+<script type="text/plain" id="mindmapSkillSource">
+---
+name: mindmap-diagram
+description: >-
+  Genera mapas mentales en JSON importable por Mindmap Estudio (index.html).
+  Usa cuando el usuario pida un diagrama, mapa mental, esquema visual o JSON
+  para importar en mindmap, o cuando quiera que Claude/IA cree la estructura
+  del mapa.
+---
+
+# Mindmap Estudio — Generar diagramas para importar
+
+## Objetivo
+
+Producir un archivo `.mindmap.json` que el usuario importe en **Menú → Importar** de Mindmap Estudio.
+
+## Qué pedir al usuario (si falta contexto)
+
+1. Tema o título del mapa
+2. Profundidad deseada (2–4 niveles suele bastar)
+3. Si quiere colores por rama o solo estructura
+4. Idioma de las etiquetas
+
+## Formato de salida
+
+Entregar **solo JSON válido** (o un bloque ```json``` + indicar que lo guarde como `nombre.mindmap.json`).
+
+```json
+{
+  "name": "Título del mapa",
+  "rootId": "n_root",
+  "exportedAt": "2026-05-21T12:00:00.000Z",
+  "nodes": { }
+}
+```
+
+### Nodo (obligatorio)
+
+Cada entrada en `nodes` debe tener:
+
+| Campo | Tipo | Reglas |
+|-------|------|--------|
+| `id` | string | Único. Prefijo `n_` recomendado |
+| `text` | string | Etiqueta visible. `\n` para varias líneas |
+| `x`, `y` | number | Centro del nodo en px. Raíz en `(0, 0)` |
+| `parent` | string \| null | `null` solo en la raíz |
+| `children` | string[] | IDs hijos, ordenados |
+| `depth` | number | `0` raíz; hijo directo `1`, etc. |
+
+### Nodo (opcional)
+
+| Campo | Uso |
+|-------|-----|
+| `color` | Borde del nodo (hex) |
+| `bgColor` | Fondo del nodo (hex) |
+| `lineColor` | Color de la línea al padre (hex) |
+
+## Reglas de consistencia (críticas)
+
+- `rootId` debe existir en `nodes` con `parent: null` y `depth: 0`
+- Si `A.children` incluye `B`, entonces `B.parent === A.id`
+- Todo `children[]` y `parent` deben ser bidireccionales
+- No dejar nodos huérfanos ni referencias rotas
+- `depth` del hijo = `depth` del padre + 1
+
+## Layout recomendado
+
+Coordenadas en píxeles; rejilla útil: **24 px** (snap de la app).
+
+### Raíz → hijos directos (depth 1)
+
+Distribución radial alrededor de `(0, 0)`, radio ~**240–360 px**:
+
+```
+angle_i = (i * 2π / max(n, 6)) - π/2
+x = cos(angle_i) * radius
+y = sin(angle_i) * radius
+```
+
+### Ramas profundas (depth ≥ 2)
+
+Extender **hacia fuera** del padre, en columna vertical:
+
+- Separación horizontal padre→hijo: **~340 px** (`COL_GAP`)
+- Separación vertical entre hermanos: **~76 px** (`ROW_GAP`)
+- Si el padre está a la derecha del abuelo, hijos a la **derecha** del padre; si está arriba, hijos **arriba**, etc.
+
+### Texto
+
+- Máx. ~40 caracteres por línea; partir con `\n`
+- Raíz: 1–3 palabras clave o título corto
+- Hojas: frases concretas, no párrafos
+
+## Paleta sugerida (depth / ramas)
+
+| Uso | Borde | Fondo suave |
+|-----|-------|-------------|
+| Raíz | `#1c1b18` | `#ffffff` |
+| Rama 1 | `#3d6b4f` | `#e3eee5` |
+| Rama 2 | `#4a6c8c` | `#e3eaf0` |
+| Rama 3 | `#a8763e` | `#f5ead8` |
+| Rama 4 | `#7a4e7c` | `#f0e3f0` |
+| Acento | `#c8553d` | `#fce8e3` |
+
+Aplicar `color` + `bgColor` en nodos de depth 1 (ramas principales). Hijos pueden heredar o ir sin color.
+
+## Flujo de trabajo
+
+1. Definir jerarquía en texto (árbol) antes de asignar coordenadas
+2. Crear raíz y ramas principales con layout radial
+3. Colocar subnodos en columnas hacia fuera
+4. Validar referencias `parent` / `children` / `depth`
+5. Entregar JSON + instrucción: **Menú → Importar** en Mindmap Estudio
+
+## Checklist antes de entregar
+
+- [ ] JSON parseable sin comentarios ni trailing commas
+- [ ] `name` descriptivo
+- [ ] Un solo nodo con `parent: null`
+- [ ] Sin solapamientos obvios (hermanos separados ≥ 76 px en Y)
+- [ ] Etiquetas en el idioma acordado
+
+## Prompt de ejemplo para el usuario
+
+Copia y adapta:
+
+```
+Crea un mapa mental en JSON compatible con Mindmap Estudio.
+Tema: [tu tema]
+Profundidad: 3 niveles
+Idioma: español
+Colorea cada rama principal.
+
+Sigue el skill mindmap-diagram: entrega solo el JSON listo para
+importar (Menú → Importar). Usa layout radial en la raíz y columnas
+hacia fuera en subramas.
+```
+
+## Ejemplo mínimo
+
+Ver `examples.md` en `.cursor/skills/mindmap-diagram/examples.md`.
+</script>
 
 <script>
 // ============== STATE ==============
@@ -2443,8 +2587,8 @@ function jsonFileName() {
   return `${safe}.mindmap.json`;
 }
 
-function downloadJsonFallback(json, filename) {
-  const blob = new Blob([json], { type: 'application/json' });
+function downloadBlob(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -2453,6 +2597,37 @@ function downloadJsonFallback(json, filename) {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadJsonFallback(json, filename) {
+  downloadBlob(json, filename, 'application/json');
+}
+
+const MINDMAP_SKILL_FILENAME = 'mindmap-diagram-SKILL.md';
+
+async function loadMindmapSkillText() {
+  const paths = [
+    MINDMAP_SKILL_FILENAME,
+    '.cursor/skills/mindmap-diagram/SKILL.md',
+  ];
+  for (const path of paths) {
+    try {
+      const res = await fetch(path);
+      if (res.ok) return await res.text();
+    } catch (_) { /* file:// or missing file */ }
+  }
+  const embedded = document.getElementById('mindmapSkillSource');
+  return embedded ? embedded.textContent.trim() : null;
+}
+
+async function downloadSkillAction() {
+  const text = await loadMindmapSkillText();
+  if (!text) {
+    toast('Skill no disponible');
+    return;
+  }
+  downloadBlob(text, MINDMAP_SKILL_FILENAME, 'text/markdown');
+  toast('Skill descargado — instálalo en Cursor o pásalo a Claude');
 }
 
 async function exportJsonAction() {
@@ -2690,6 +2865,7 @@ hamburgerMenu.addEventListener('click', (e) => {
   else if (action === 'export-json') exportJsonAction();
   else if (action === 'json-folder') manageJsonFolder();
   else if (action === 'import-json') importJsonAction();
+  else if (action === 'download-skill') downloadSkillAction();
   else if (action === 'export-png') exportPng();
   else if (action === 'shortcuts') {
     document.getElementById('help').classList.toggle('hidden');
