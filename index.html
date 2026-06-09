@@ -818,6 +818,7 @@
   <button class="menu-item" data-action="export-json"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Export JSON</button>
   <button class="menu-item" data-action="json-folder"><span class="icon"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>Carpeta JSON</button>
   <button class="menu-item" data-action="import-json"><span class="icon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>Importar</button>
+  <button class="menu-item" data-action="tidy"><span class="icon"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><line x1="7" y1="12" x2="17" y2="6.5"/><line x1="7" y1="12" x2="17" y2="17.5"/></svg></span>Reorganizar</button>
   <div class="menu-divider"></div>
   <button class="menu-item" data-action="shortcuts"><span class="icon"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"/><line x1="6" y1="8" x2="6.01" y2="8"/><line x1="10" y1="8" x2="10.01" y2="8"/><line x1="14" y1="8" x2="14.01" y2="8"/><line x1="18" y1="8" x2="18.01" y2="8"/><line x1="6" y1="12" x2="6.01" y2="12"/><line x1="10" y1="12" x2="10.01" y2="12"/><line x1="14" y1="12" x2="14.01" y2="12"/><line x1="18" y1="12" x2="18.01" y2="12"/><line x1="7" y1="16" x2="17" y2="16"/></svg></span>Atajos</button>
   <button class="menu-item" data-action="download-skill"><span class="icon"><svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="12" y1="6" x2="12" y2="14"/><polyline points="9 11 12 14 15 11"/></svg></span>Skill para IA</button>
@@ -2163,6 +2164,108 @@ function layoutChildren(parentId) {
   }
 }
 
+// Rebuild parent links and depths from the children arrays, starting at the
+// root. Makes imported JSON robust against wrong/missing `depth` or `parent`
+// fields and drops orphan nodes that aren't reachable from the root.
+function normalizeTree() {
+  const root = state.nodes[state.rootId];
+  if (!root) return;
+  const reachable = new Set();
+  (function walk(id, parentId, depth) {
+    const node = state.nodes[id];
+    if (!node || reachable.has(id)) return;
+    reachable.add(id);
+    node.parent = parentId;
+    node.depth = depth;
+    node.children = (node.children || []).filter(cid => state.nodes[cid]);
+    node.children.forEach(cid => walk(cid, id, depth + 1));
+  })(state.rootId, null, 0);
+  // Remove unreachable / orphan nodes
+  Object.keys(state.nodes).forEach(id => {
+    if (!reachable.has(id)) delete state.nodes[id];
+  });
+}
+
+// Recompute a clean, non-overlapping layout for the whole tree. Measures the
+// real rendered size of each node from the DOM (so it must run after a
+// render()), then lays the tree out as a balanced left/right "tidy tree":
+// the root stays at (0,0), main branches are split between the two sides, and
+// every subtree gets a vertical band sized to its own contents so siblings
+// never collide. Ignores the incoming x/y entirely.
+function autoLayoutTree() {
+  const root = state.nodes[state.rootId];
+  if (!root) return;
+
+  const V_GAP = 28;  // vertical gap between adjacent subtrees
+  const H_GAP = 90;  // horizontal gap between a node and its children
+
+  // Measure rendered sizes (fallback to a sane default if not in the DOM yet)
+  const sizes = {};
+  Object.values(state.nodes).forEach(n => {
+    const el = canvas.querySelector(`[data-id="${n.id}"]`);
+    sizes[n.id] = el
+      ? { w: el.offsetWidth, h: el.offsetHeight }
+      : { w: 140, h: 42 };
+  });
+
+  // Vertical extent of a node's whole subtree
+  const subtreeHeight = (id) => {
+    const node = state.nodes[id];
+    if (!node.children.length) return sizes[id].h;
+    const h = node.children.reduce((s, c) => s + subtreeHeight(c), 0)
+            + V_GAP * (node.children.length - 1);
+    return Math.max(h, sizes[id].h);
+  };
+
+  // Assign Y by walking leaves with a running cursor; internal nodes center on
+  // the midpoint of their first/last child.
+  const layoutY = (id, cursor) => {
+    const node = state.nodes[id];
+    if (!node.children.length) {
+      node._y = cursor.y + sizes[id].h / 2;
+      cursor.y += sizes[id].h + V_GAP;
+      return;
+    }
+    const ys = [];
+    node.children.forEach(c => { layoutY(c, cursor); ys.push(state.nodes[c]._y); });
+    node._y = (ys[0] + ys[ys.length - 1]) / 2;
+  };
+
+  // Assign X by depth chain: each child sits just outside its parent.
+  const assignX = (id, side, parentX, parentHalfW) => {
+    const node = state.nodes[id];
+    const x = parentX + side * (parentHalfW + H_GAP + sizes[id].w / 2);
+    node._x = x;
+    node.children.forEach(c => assignX(c, side, x, sizes[id].w / 2));
+  };
+
+  // Split main branches between right (+1) and left (-1), balancing by height
+  const right = [], left = [];
+  let rH = 0, lH = 0;
+  root.children.forEach(b => {
+    const h = subtreeHeight(b);
+    if (rH <= lH) { right.push(b); rH += h; } else { left.push(b); lH += h; }
+  });
+
+  [[right, 1], [left, -1]].forEach(([list, side]) => {
+    if (!list.length) return;
+    const total = list.reduce((s, b) => s + subtreeHeight(b), 0)
+                + V_GAP * (list.length - 1);
+    const cursor = { y: -total / 2 };
+    list.forEach(b => layoutY(b, cursor));
+    list.forEach(b => assignX(b, side, 0, sizes[state.rootId].w / 2));
+  });
+
+  root._x = 0; root._y = 0;
+
+  // Commit computed positions
+  Object.values(state.nodes).forEach(n => {
+    if (n._x !== undefined) n.x = n._x;
+    if (n._y !== undefined) n.y = n._y;
+    delete n._x; delete n._y;
+  });
+}
+
 function addChild(parentId) {
   const parent = state.nodes[parentId];
   if (!parent) return;
@@ -2731,6 +2834,18 @@ document.getElementById('fabAdd').addEventListener('click', (e) => {
 function importJsonAction() {
   document.getElementById('fileInput').click();
 }
+
+// Re-tidy the current map into a clean, non-overlapping layout.
+function tidyLayoutAction() {
+  if (!state.rootId || !state.nodes[state.rootId]) return;
+  normalizeTree();
+  render();          // ensure DOM nodes exist for measuring
+  autoLayoutTree();
+  centerView();
+  render();
+  saveSnapshot();
+  toast('Mapa reorganizado');
+}
 document.getElementById('fileInput').addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -2743,6 +2858,12 @@ document.getElementById('fileInput').addEventListener('change', (e) => {
       state.selectedId = data.rootId;
       state.currentName = data.name || file.name.replace('.json', '');
       state.currentId = null;
+      // Repair the tree, then recompute a clean non-overlapping layout instead
+      // of trusting the (often chaotic) x/y coming from the JSON. A first
+      // render() is needed so node sizes can be measured from the DOM.
+      normalizeTree();
+      render();
+      autoLayoutTree();
       centerView();
       render();
       updateCurrentNameLabel();
@@ -2865,6 +2986,7 @@ hamburgerMenu.addEventListener('click', (e) => {
   else if (action === 'export-json') exportJsonAction();
   else if (action === 'json-folder') manageJsonFolder();
   else if (action === 'import-json') importJsonAction();
+  else if (action === 'tidy') tidyLayoutAction();
   else if (action === 'download-skill') downloadSkillAction();
   else if (action === 'export-png') exportPng();
   else if (action === 'shortcuts') {
