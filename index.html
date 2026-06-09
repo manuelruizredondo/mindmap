@@ -2187,18 +2187,18 @@ function normalizeTree() {
   });
 }
 
-// Recompute a clean, non-overlapping layout for the whole tree. Measures the
-// real rendered size of each node from the DOM (so it must run after a
-// render()), then lays the tree out as a balanced left/right "tidy tree":
-// the root stays at (0,0), main branches are split between the two sides, and
-// every subtree gets a vertical band sized to its own contents so siblings
-// never collide. Ignores the incoming x/y entirely.
+// Recompute a clean, non-overlapping RADIAL layout for the whole tree.
+// Measures the real rendered size of each node from the DOM (so it must run
+// after a render()). The root stays at (0,0); the main branches fan out around
+// it (angular space allocated proportionally to each branch's size), and every
+// sub-branch grows outward as its own tidy tree so nothing collides. Ignores
+// the incoming x/y entirely.
 function autoLayoutTree() {
   const root = state.nodes[state.rootId];
   if (!root) return;
 
-  const V_GAP = 28;  // vertical gap between adjacent subtrees
-  const H_GAP = 90;  // horizontal gap between a node and its children
+  const STACK_GAP = 26;  // gap between sibling subtrees (perpendicular to growth)
+  const COL_GAP   = 80;  // gap between a node and its children (along growth)
 
   // Measure rendered sizes (fallback to a sane default if not in the DOM yet)
   const sizes = {};
@@ -2209,61 +2209,109 @@ function autoLayoutTree() {
       : { w: 140, h: 42 };
   });
 
-  // Vertical extent of a node's whole subtree
-  const subtreeHeight = (id) => {
-    const node = state.nodes[id];
-    if (!node.children.length) return sizes[id].h;
-    const h = node.children.reduce((s, c) => s + subtreeHeight(c), 0)
-            + V_GAP * (node.children.length - 1);
-    return Math.max(h, sizes[id].h);
+  root.x = 0; root.y = 0;
+  const branches = root.children.slice();
+  if (!branches.length) return;
+
+  // How many leaves hang under a node — used to share angular space fairly.
+  const leafCount = (id) => {
+    const n = state.nodes[id];
+    return n.children.length ? n.children.reduce((s, c) => s + leafCount(c), 0) : 1;
   };
 
-  // Assign Y by walking leaves with a running cursor; internal nodes center on
-  // the midpoint of their first/last child.
-  const layoutY = (id, cursor) => {
-    const node = state.nodes[id];
-    if (!node.children.length) {
-      node._y = cursor.y + sizes[id].h / 2;
-      cursor.y += sizes[id].h + V_GAP;
+  // Extent of a subtree along the STACKING axis (perpendicular to growth).
+  // orient 'h' grows horizontally → stacks vertically (uses heights);
+  // orient 'v' grows vertically   → stacks horizontally (uses widths).
+  const subExtent = (id, orient) => {
+    const n = state.nodes[id];
+    const own = orient === 'h' ? sizes[id].h : sizes[id].w;
+    if (!n.children.length) return own;
+    const s = n.children.reduce((a, c) => a + subExtent(c, orient), 0)
+            + STACK_GAP * (n.children.length - 1);
+    return Math.max(s, own);
+  };
+
+  // Local layout buffers for a single branch
+  const stackVal = {}; // id -> coordinate along the stacking axis
+  const growVal  = {}; // id -> coordinate along the growth axis
+
+  const layoutStack = (id, orient, cursor) => {
+    const n = state.nodes[id];
+    const own = orient === 'h' ? sizes[id].h : sizes[id].w;
+    if (!n.children.length) {
+      stackVal[id] = cursor.v + own / 2;
+      cursor.v += own + STACK_GAP;
       return;
     }
-    const ys = [];
-    node.children.forEach(c => { layoutY(c, cursor); ys.push(state.nodes[c]._y); });
-    node._y = (ys[0] + ys[ys.length - 1]) / 2;
+    const cs = [];
+    n.children.forEach(c => { layoutStack(c, orient, cursor); cs.push(stackVal[c]); });
+    stackVal[id] = (cs[0] + cs[cs.length - 1]) / 2;
   };
 
-  // Assign X by depth chain: each child sits just outside its parent.
-  const assignX = (id, side, parentX, parentHalfW) => {
-    const node = state.nodes[id];
-    const x = parentX + side * (parentHalfW + H_GAP + sizes[id].w / 2);
-    node._x = x;
-    node.children.forEach(c => assignX(c, side, x, sizes[id].w / 2));
+  const layoutGrow = (id, orient, side, parentG, parentHalf) => {
+    const half = (orient === 'h' ? sizes[id].w : sizes[id].h) / 2;
+    const g = parentG + side * (parentHalf + COL_GAP + half);
+    growVal[id] = g;
+    state.nodes[id].children.forEach(c => layoutGrow(c, orient, side, g, half));
   };
 
-  // Split main branches between right (+1) and left (-1), balancing by height
-  const right = [], left = [];
-  let rH = 0, lH = 0;
-  root.children.forEach(b => {
-    const h = subtreeHeight(b);
-    if (rH <= lH) { right.push(b); rH += h; } else { left.push(b); lH += h; }
+  const collectBranch = (id, acc) => {
+    acc.push(id);
+    state.nodes[id].children.forEach(c => collectBranch(c, acc));
+    return acc;
+  };
+
+  const orientOf = (ang) =>
+    Math.abs(Math.cos(ang)) >= Math.abs(Math.sin(ang)) ? 'h' : 'v';
+
+  // 1a) Provisional angles by leaf count, just to guess each branch's orientation.
+  const lw = branches.map(leafCount);
+  const lwTotal = lw.reduce((a, b) => a + b, 0) || 1;
+  let provAcc = 0;
+  const provOrient = branches.map((b, i) => {
+    const ang = (-Math.PI / 2) + 2 * Math.PI * (provAcc + lw[i] / 2) / lwTotal;
+    provAcc += lw[i];
+    return orientOf(ang);
   });
 
-  [[right, 1], [left, -1]].forEach(([list, side]) => {
-    if (!list.length) return;
-    const total = list.reduce((s, b) => s + subtreeHeight(b), 0)
-                + V_GAP * (list.length - 1);
-    const cursor = { y: -total / 2 };
-    list.forEach(b => layoutY(b, cursor));
-    list.forEach(b => assignX(b, side, 0, sizes[state.rootId].w / 2));
+  // 1b) Real angles: give each branch arc space proportional to its actual
+  // perpendicular extent (+ padding), so neighbouring subtrees never crowd.
+  const PAD = 40;
+  const weights = branches.map((b, i) => subExtent(b, provOrient[i]) + PAD);
+  const totalW = weights.reduce((a, b) => a + b, 0) || 1;
+  let acc = 0;
+  const placements = branches.map((b, i) => {
+    const ang = (-Math.PI / 2) + 2 * Math.PI * (acc + weights[i] / 2) / totalW;
+    acc += weights[i];
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const orient = orientOf(ang);
+    const side = orient === 'h' ? (cos >= 0 ? 1 : -1) : (sin >= 0 ? 1 : -1);
+    return { b, cos, sin, orient, side };
   });
 
-  root._x = 0; root._y = 0;
+  // 2) Pick a placement radius large enough that branches don't crowd.
+  let totalPerp = 0;
+  placements.forEach(p => { totalPerp += subExtent(p.b, p.orient) + PAD; });
+  const baseR = sizes[state.rootId].w / 2 + COL_GAP + 110;
+  const R = Math.max(baseR, totalPerp / (2 * Math.PI) * 1.15);
 
-  // Commit computed positions
-  Object.values(state.nodes).forEach(n => {
-    if (n._x !== undefined) n.x = n._x;
-    if (n._y !== undefined) n.y = n._y;
-    delete n._x; delete n._y;
+  // 3) Lay out each branch locally, then translate it to its radial position.
+  placements.forEach(p => {
+    const cursor = { v: 0 };
+    layoutStack(p.b, p.orient, cursor);
+    growVal[p.b] = 0;
+    const rootHalf = (p.orient === 'h' ? sizes[p.b].w : sizes[p.b].h) / 2;
+    state.nodes[p.b].children.forEach(c => layoutGrow(c, p.orient, p.side, 0, rootHalf));
+
+    const bx = p.cos * R, by = p.sin * R;
+    const rootStack = stackVal[p.b];
+    collectBranch(p.b, []).forEach(id => {
+      let rx, ry;
+      if (p.orient === 'h') { rx = growVal[id];            ry = stackVal[id] - rootStack; }
+      else                  { rx = stackVal[id] - rootStack; ry = growVal[id]; }
+      state.nodes[id].x = bx + rx;
+      state.nodes[id].y = by + ry;
+    });
   });
 }
 
