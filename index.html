@@ -856,6 +856,7 @@
 <button class="fab-add" id="fabAdd" title="Añadir nodo (Tab para hijo desde teclado)" aria-label="Añadir nodo">+</button>
 
 <div class="zoom-cluster">
+  <button class="btn" id="btnTidy" title="Reorganizar el mapa sin solapamientos">Reorganizar</button>
   <button class="btn" id="btnSnap" title="Alinear cajas a la rejilla (24px)">Snap</button>
   <div class="zoom-indicator" id="zoomIndicator">100%</div>
 </div>
@@ -3033,6 +3034,8 @@ document.getElementById('btnSnap').addEventListener('click', () => {
   }
 });
 updateSnapButton();
+
+document.getElementById('btnTidy').addEventListener('click', tidyLayoutAction);
 
 function exportPng() {
   const nodes = Object.values(state.nodes);
